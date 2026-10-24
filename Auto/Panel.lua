@@ -38959,6 +38959,20 @@ zukacmd({Name="zukahub",Aliases={"zuka"},Description="Loads the Legacy Zuka Hub"
 		"Loading Zuka's Hub..."
 	)
 end)
+
+addcmd("Btools", {}, function(args, speaker)
+do
+print("loading")
+task.wait(5)
+warn("done")
+loadstring(game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Utilities/BuildTools.lua"))()
+end
+end)
+
+
+
+
+
 addcmd("lockprop",{"lockp"},function(args,speaker)
 	local Players=game:GetService("Players")
 	local RunService=game:GetService("RunService")
