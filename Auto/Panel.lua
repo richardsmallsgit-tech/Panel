@@ -8886,15 +8886,6 @@ function Modules.AntiKill:Initialize()
 		module:Toggle()
 	end)
 end
-zukacmd({
-	Name="lunaui",
-	Aliases={"luna","lhub"},
-	Description="loads the better zukahub",
-	ArgsDesc={},
-	Permissions={},
-},function(args,speaker)
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/zukatechlive/allmychains/refs/heads/main/lunaaddon.lua"))()
-end)
 Modules.SpectateController={
 	State={
 		IsEnabled=false,
@@ -38752,17 +38743,6 @@ local function loadstringCmd(url,notif)
 	end)
 	DoNotif(notif,3)
 end
-zukacmd({
-	Name="propedit",
-	Aliases={"stats"},
-	Description="lock your ws / etc",
-},function(args)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/misc/PropertyLock.lua"
-		)
-	)()
-end)
 zukacmd(
 	{Name="zsniper",Aliases={},Description="For https://www.roblox.com/games/14419907512/Zombie-game"},
 	function()
@@ -38772,17 +38752,6 @@ zukacmd(
 		)
 	end
 )
-zukacmd({
-	Name="ketamine",
-	Aliases={"ket"},
-	Description="remote spy",
-},function(args)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/Ketamine-RemSpy.lua"
-		)
-	)()
-end)
 zukacmd(
 	{Name="zshotgun",Aliases={},Description="For https://www.roblox.com/games/14419907512/Zombie-game"},
 	function()
@@ -38882,12 +38851,6 @@ zukacmd({Name="touchfling",Aliases={"tf"},Description="Loads the touchfling GUI"
 		"Loaded"
 	)
 end)
-zukacmd({Name="ibtools",Aliases={"btools"},Description="Upgraded Gui For Btools"},function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/btools.lua",
-		"Loading Revamped Btools Gui"
-	)
-end)
 zukacmd({Name="walkvoid",Aliases={"wv"},Description="Stops you from falling into the void."},function()
 	loadstringCmd(
 		"https://raw.githubusercontent.com/zukatech1/Main-Repo/refs/heads/main/WalkVoid.lua",
@@ -38945,15 +38908,6 @@ zukacmd({
 	)
 end)
 zukacmd(
-	{Name="Copyconsole",Aliases={"copy"},Description="Allows you to copy errors from the console.."},
-	function()
-		loadstringCmd(
-			"https://raw.githubusercontent.com/zukatechlive/allmychains/refs/heads/main/console.lua",
-			"Copy Console Activated."
-		)
-	end
-)
-zukacmd(
 	{Name="reachfix",Aliases={"fix"},Description="Makes your equipped tool invisible when using reach"},
 	function()
 		loadstringCmd(
@@ -38991,115 +38945,12 @@ zukacmd({Name="newantikick",Aliases={},Description="In beta"},function()
 	)
 end)
 zukacmd({
-	Name="partshield",
-	Aliases={"shield"},
-	Description="orbit parts around you as a shield.",
-},function(args)
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/Shield.lua"))()
-end)
-zukacmd({
-	Name="partflinger",
-	Aliases={"pv4"},
-	Description="version 4",
-},function(args)
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/fling.lua"))()
-end)
-zukacmd({
 	Name="overseernew",
 	Aliases={"newos"},
 	Description="overseer light version",
 },function(args)
 	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/OverseerMini.lua")
-	)()
-end)
-zukacmd({
-	Name="dex",
-	Aliases={},
-	Description="modified dex",
-},function(args)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/AutoExecute/dex.lua"
-		)
-	)()
-end)
-zukacmd({
-	Name="bosspanel",
-	Aliases={"bossp"},
-	Description="for get 1 skill point every second.",
-},function(args)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/get%2B1skillpointeverysecond/BossPanel.lua"
-		)
-	)()
-end)
-zukacmd({
-	Name="newgamefinder",
-	Aliases={"tpui"},
-	Description="revamped",
-},function(args)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/get%2B1skillpointeverysecond/UniverseViewer.lua"
-		)
-	)()
-end)
-zukacmd({
-	Name="scanbs",
-	Aliases={"bscan"},
-	Description="Back Door Scanner",
-},function(args)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/bs.lua")
-	)()
-end)
-zukacmd({
-	Name="hdgui",
-	Aliases={},
-	Description="Reveals gui for hdadmin",
-},function(args)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/hdadminguireveal.lua"
-		)
-	)()
-end)
-zukacmd({
-	Name="movement",
-	Aliases={"mov"},
-	Description="better movement",
-},function(args)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/BetterMovement.lua")
-	)()
-end)
-zukacmd({
-	Name="fakechar",
-	Aliases={},
-	Description="c-frame manipulation",
-},function(args)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/CframeEditor.lua")
-	)()
-end)
-zukacmd({
-	Name="ztycoon",
-	Aliases={"zt"},
-	Description="makes guns op in some random tycoon paste",
-},function(args)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/Tycoon.lua")
-	)()
-end)
-zukacmd({
-	Name="scp",
-	Aliases={"c4"},
-	Description="card giver",
-},function(args)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/scp.lua")
+		game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Overseer.lua")
 	)()
 end)
 zukacmd({Name="zukahub",Aliases={"zuka"},Description="Loads the Legacy Zuka Hub"},function()
@@ -39107,22 +38958,6 @@ zukacmd({Name="zukahub",Aliases={"zuka"},Description="Loads the Legacy Zuka Hub"
 		"https://raw.githubusercontent.com/legalize8ga-maker/Scripts/refs/heads/main/ZukaHub.lua",
 		"Loading Zuka's Hub..."
 	)
-end)
-zukacmd({
-	Name="save",
-	Aliases={"sav"},
-	Description="save the map",
-},function(args)
-	local Params={
-		RepoURL="https://raw.githubusercontent.com/zukatechlive/UniversalSynSaveInstance/refs/heads/main/",
-		SSI="saveinstance",
-	}
-	local synsaveinstance=loadstring(game:HttpGet(Params.RepoURL..Params.SSI..".luau",true),Params.SSI)()
-	local Options={}
-	if identifyexecutor()=="Fluxus"then
-		Options={IgnoreSpecialProperties=true}
-	end
-	synsaveinstance(Options)
 end)
 addcmd("lockprop",{"lockp"},function(args,speaker)
 	local Players=game:GetService("Players")
@@ -41248,81 +41083,8 @@ addcmd("toucher",{"ta"},function(args,speaker)
 		end
 	end
 end)
-addcmd("cutgrass",{},function(args,speaker)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/CutGrassMenu.lua")
-	)()
-end)
-addcmd("illumina",{"gi"},function(args,speaker)
-	loadstring(game:HttpGet("https://github.com/zukatechlive/newplacetodump/blob/main/AutoExecute/IlluminaGiver.lua"))()
-end)
-addcmd("gunmenu2",{},function(args,speaker)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/allmychains/refs/heads/main/weaponmenu.lua")
-	)()
-end)
-addcmd("crosshair",{"c"},function(args,speaker)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/crosshair.lua")
-	)()
-end)
-addcmd("shrek",{},function(args,speaker)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/shrekinbackrooms.lua"
-		)
-	)()
-end)
-addcmd("unanchored",{},function(args,speaker)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/unanchorednoclip.lua"
-		)
-	)()
-end)
-addcmd("guimaker",{},function(args,speaker)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/GUI.lua")
-	)()
-end)
-addcmd("tpautogui",{"autotp"},function(args,speaker)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/TPToFolder.lua"
-		)
-	)()
-end)
-addcmd("worldofshit",{"wos2"},function(args,speaker)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/dashspam.lua")
-	)()
-end)
-addcmd("verified",{},function(args,speaker)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/ra.lua")
-	)()
-end)
 addcmd("zfuckerr",{"Zfck"},function(args,speaker)
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/osukfcdays/zlfucker/refs/heads/main/main.luau"))()
-end)
-addcmd("toolkill",{},function(args,speaker)
-	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/toolkill.lua")
-	)()
-end)
-addcmd("Wintool",{},function(args,speaker)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/universaltouchpart.lua"
-		)
-	)()
-end)
-addcmd("SynapseX",{},function(args,speaker)
-	loadstring(
-		game:HttpGet(
-			"https://raw.githubusercontent.com/zukatechlive/newplacetodump/refs/heads/main/random/InternalSynapse.lua"
-		)
-	)()
 end)
 local function loadAimbotGUI(args)
 	local CoreGui=game:GetService("CoreGui")
