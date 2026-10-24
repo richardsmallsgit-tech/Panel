@@ -1,5 +1,5 @@
 local genv=getgenv()
-local SPOOF_NAME,SPOOF_VER="Solara","Solara"
+local SPOOF_NAME,SPOOF_VER="ZukaTech","Madium_Based"
 genv.identifyexecutor=function()
 	return SPOOF_NAME,SPOOF_VER
 end
@@ -3850,7 +3850,7 @@ UserInputService.InputBegan:Connect(function(input,gameProcessed)
 	if gameProcessed then
 		return
 	end
-	if input.KeyCode==Enum.KeyCode.F then
+	if input.KeyCode==Enum.KeyCode.P then
 		Fly:Toggle()
 	elseif input.KeyCode==Enum.KeyCode.U then
 		Fly:ToggleUI()
@@ -38783,7 +38783,15 @@ zukacmd({
 		)
 	)()
 end)
-
+zukacmd(
+	{Name="zshotgun",Aliases={},Description="For https://www.roblox.com/games/14419907512/Zombie-game"},
+	function()
+		loadstringCmd(
+			"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/ShotgunMinigunScriptWorking.lua",
+			"Loading.."
+		)
+	end
+)
 zukacmd({Name="noanim",Aliases={},Description="Pauses/Removes All animations for the player."},function()
 	loadstringCmd(
 		"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/animationremover.lua",
@@ -38812,7 +38820,12 @@ zukacmd({
 		" Loading.. "
 	)
 end)
-
+zukacmd({Name="Overseer",Aliases={},Description="Better than all."},function()
+	loadstringCmd(
+		"https://raw.githubusercontent.com/idioticanisgae-pixel/fourfortyfivepmsundaymarch29build/refs/heads/main/The_Overseer.lua",
+		" Loading.. "
+	)
+end)
 zukacmd({Name="autofling",Aliases={"pwned"},Description="Pwned Flinger"},function()
 	loadstringCmd(
 		"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/Ultimatefling.lua",
@@ -44088,7 +44101,7 @@ task.spawn(function()
 	refreshChatButton()
 	pcall(hookTextChat)
 	openChat()
-	addChatMessage("System","Welcome gamer.",false,true,true)
+	addChatMessage("Zuka","Welcome. Use ; to bring up the input bar, or use ;cmds in chat for the list of commands.",false,true,true)
 end)
 return{
 	env=envInfo,
