@@ -1,0 +1,16 @@
+do
+	print("loading")
+	task.wait(5)
+	warn("done")
+	loadstring(
+		game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Panel.lua")
+	)()
+end
+do
+	print("loading")
+	task.wait(5)
+	warn("done")
+	loadstring(
+		game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Dex.lua")
+	)()
+end
