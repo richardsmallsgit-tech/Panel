@@ -43039,6 +43039,35 @@ local function loadAimbotGUI(args)
 	end
 end
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+addcmd("pflinger", { "partf", "pv4" }, function(args, speaker)
+	loadstring(
+		game:HttpGet(
+			"https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Obfuscated/Flinger.lua"
+		)
+	)()
+end)
+
+
+
 addcmd("cutgrass", {"grassgui"}, function(args, speaker)
     loadstring(game:HttpGet((function()
     	local t = {
