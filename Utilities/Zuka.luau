@@ -2311,10 +2311,15 @@ local function main(...)
 							if opn == "LOADNIL" then
 								emit(ind() .. R(ur[1]) .. " = nil")
 							elseif opn == "LOADB" then
-								emit(ind() .. R(ur[1]) .. " = " .. toEscapedString(toBoolean(ed[1])))
-								if ed[2] ~= 0 then
-									emitRaw(" +" .. ed[2])
+								local skipCount = ed[2] or 0
+								local statement = ind() .. R(ur[1]) .. " = " .. toEscapedString(toBoolean(ed[1]))
+								if skipCount ~= 0 then
+									-- Keep bytecode skip metadata as a trailing comment. Emitting it
+									-- with emitRaw() placed it after the line break, so the next
+									-- emitted token could become invalid source such as "+1end".
+									statement ..= " -- LOADB skip " .. tostring(skipCount)
 								end
+								emit(statement)
 							elseif opn == "LOADN" then
 								emit(ind() .. R(ur[1]) .. " = " .. ed[1])
 							elseif opn == "LOADK" then
