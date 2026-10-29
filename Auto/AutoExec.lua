@@ -12,7 +12,7 @@ do
 	task.wait(5)
 	warn("done")
 	loadstring(
-		game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Dex-Remake.lua")
+		game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Dex.lua")
 	)()
 end
 end)(...)
