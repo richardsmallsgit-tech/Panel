@@ -3272,45 +3272,52 @@ local EmbeddedModules = {
 					IconMap = Explorer.MiscIcons,
 					Icon = "TeleportTo",
 					OnClick = function()
+						local character = plr.Character
+						local root = character and character:FindFirstChild("HumanoidRootPart")
+						local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 						local sList = selection.List
-						local plrRP = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
 
-						if not plrRP then
+						if not character or not root or not humanoid or humanoid.Health <= 0 then
 							return
 						end
 
-						for _, node in next, sList do
-							local Obj = node.Obj
+						local configuredOffset = Settings and Settings.Explorer and Settings.Explorer.TeleportToOffset
+						if typeof(configuredOffset) ~= "Vector3" or configuredOffset.Magnitude < 0.1 then
+							configuredOffset = Vector3.new(0, 3, 0)
+						end
 
-							if Obj:IsA("BasePart") then
-								if Obj.CanCollide then
-									plr.Character:MoveTo(Obj.Position)
-								else
-									plrRP.CFrame = CFrame.new(Obj.Position + Settings.Explorer.TeleportToOffset)
+						for _, node in next, sList do
+							local obj = node and node.Obj
+							if obj and obj.Parent then
+								local targetPosition
+								local extraHeight = 0
+
+								if obj:IsA("BasePart") then
+									targetPosition = obj.Position
+									extraHeight = obj.Size.Y * 0.5
+								elseif obj:IsA("Model") then
+									local ok, pivot = pcall(function() return obj:GetPivot() end)
+									if ok then
+										targetPosition = pivot.Position
+										local boundsOk, _, size = pcall(function() return obj:GetBoundingBox() end)
+										if boundsOk and size then extraHeight = size.Y * 0.5 end
+									end
+								elseif obj:IsA("Attachment") then
+									targetPosition = obj.WorldPosition
+								elseif obj:IsA("Tool") then
+									local part = obj:FindFirstChildWhichIsA("BasePart", true)
+									if part then
+										targetPosition = part.Position
+										extraHeight = part.Size.Y * 0.5
+									end
 								end
-								break
-							elseif Obj:IsA("Model") then
-								if Obj.PrimaryPart then
-									if Obj.PrimaryPart.CanCollide then
-										plr.Character:MoveTo(Obj.PrimaryPart.Position)
-									else
-										plrRP.CFrame =
-											CFrame.new(Obj.PrimaryPart.Position + Settings.Explorer.TeleportToOffset)
-									end
-									break
-								else
-									local part = Obj:FindFirstChildWhichIsA("BasePart", true)
-									if part and nodes[part] then
-										if part.CanCollide then
-											plr.Character:MoveTo(part.Position)
-										else
-											plrRP.CFrame =
-												CFrame.new(part.Position + Settings.Explorer.TeleportToOffset)
-										end
-										break
-									elseif Obj.WorldPivot then
-										plrRP.CFrame = Obj.WorldPivot
-									end
+
+								if targetPosition then
+									local destination = targetPosition + configuredOffset + Vector3.new(0, extraHeight, 0)
+									local targetCFrame = CFrame.new(destination) * (root.CFrame - root.Position)
+									local moved = pcall(function() character:PivotTo(targetCFrame) end)
+									if not moved then root.CFrame = targetCFrame end
+									return
 								end
 							end
 						end
@@ -26208,6 +26215,459 @@ return search]==]
 			return { InitDeps = initDeps, InitAfterMain = initAfterMain, Main = main }
 		end
 	end,
+
+	["BuildTools"] = function()
+		local Main, Lib, Apps, Settings
+		local service, plr
+
+		local function initDeps(data)
+			Main = data.Main
+			Lib = data.Lib
+			Apps = data.Apps
+			Settings = data.Settings
+			service = data.service
+			plr = data.plr
+		end
+
+		local function initAfterMain() end
+
+		local function main()
+			local BuildTools = {}
+			local Players = game:GetService("Players")
+			local UserInputService = game:GetService("UserInputService")
+			local RunService = game:GetService("RunService")
+			local StarterGui = game:GetService("StarterGui")
+			local LocalPlayer = Players.LocalPlayer
+			local Mouse = Main.Mouse
+
+			local selected = {}
+			local history = {}
+			local connections = {}
+			local active = false
+			local currentMode = "Select"
+			local currentTarget = nil
+			local isDragging = false
+			local dragStart = nil
+			local dragSnapshots = nil
+			local highlight = nil
+			local statusLabel
+			local selectionLabel
+			local modeButtons = {}
+			local window
+
+			local function notify(message)
+				pcall(function()
+					StarterGui:SetCore("SendNotification", {
+						Title = "DEX · Build Tools",
+						Text = message,
+						Duration = 2,
+					})
+				end)
+			end
+
+			local function track(connection)
+				table.insert(connections, connection)
+				return connection
+			end
+
+			local function disconnectAll()
+				for _, connection in ipairs(connections) do
+					pcall(function() connection:Disconnect() end)
+				end
+				table.clear(connections)
+			end
+
+			local function isValidPart(part)
+				return typeof(part) == "Instance"
+					and part:IsA("BasePart")
+					and part:IsDescendantOf(workspace)
+					and not (LocalPlayer.Character and part:IsDescendantOf(LocalPlayer.Character))
+			end
+
+			local function cleanSelection()
+				for i = #selected, 1, -1 do
+					if not isValidPart(selected[i]) then
+						table.remove(selected, i)
+					end
+				end
+			end
+
+			local function contains(part)
+				for i, item in ipairs(selected) do
+					if item == part then return i end
+				end
+				return nil
+			end
+
+			local function refresh()
+				cleanSelection()
+				if statusLabel then
+					statusLabel.Text = ("Mode: %s   |   Target: %s"):format(
+						currentMode:upper(),
+						currentTarget and currentTarget.Name or "none"
+					)
+				end
+				if selectionLabel then
+					selectionLabel.Text = ("Selected parts: %d"):format(#selected)
+				end
+				for mode, button in pairs(modeButtons) do
+					local chosen = currentMode == mode
+					button.BackgroundColor3 = chosen
+						and (Settings.Theme and Settings.Theme.ButtonHover or Color3.fromRGB(70, 100, 150))
+						or (Settings.Theme and Settings.Theme.Button or Color3.fromRGB(45, 45, 52))
+					button.TextColor3 = Settings.Theme and Settings.Theme.Text or Color3.fromRGB(235, 235, 235)
+				end
+				if highlight then
+					highlight.Adornee = currentTarget
+					highlight.Visible = currentTarget ~= nil
+				end
+			end
+
+			local function setTarget(part)
+				if part and not part:IsA("BasePart") then part = nil end
+				currentTarget = part
+				refresh()
+			end
+
+			local function snapshot(parts)
+				local records = {}
+				for _, part in ipairs(parts) do
+					if part and part.Parent then
+						table.insert(records, {
+							part = part,
+							parent = part.Parent,
+							cframe = part.CFrame,
+							anchored = part.Anchored,
+							canCollide = part.CanCollide,
+						})
+					end
+				end
+				return records
+			end
+
+			local function pushHistory(records, label)
+				if #records > 0 then
+					table.insert(history, { records = records, label = label })
+					if #history > 100 then table.remove(history, 1) end
+				end
+			end
+
+			local function restoreLast()
+				local action = table.remove(history)
+				if not action then
+					notify("Nothing to undo.")
+					return
+				end
+				for _, record in ipairs(action.records) do
+					pcall(function()
+						if record.remove then
+							record.part:Destroy()
+						else
+							record.part.Parent = record.parent
+							if record.part:IsA("BasePart") then
+								record.part.CFrame = record.cframe
+								record.part.Anchored = record.anchored
+								record.part.CanCollide = record.canCollide
+							end
+						end
+					end)
+				end
+				refresh()
+				notify("Undid: " .. action.label)
+			end
+
+			local function selectPart(part, additive)
+				if not isValidPart(part) then
+					if not additive then table.clear(selected) end
+					setTarget(nil)
+					return
+				end
+				setTarget(part)
+				local index = contains(part)
+				if additive then
+					if index then
+						table.remove(selected, index)
+					else
+						table.insert(selected, part)
+					end
+				else
+					table.clear(selected)
+					table.insert(selected, part)
+				end
+				refresh()
+			end
+
+			local function runAction(mode, part)
+				if mode == "Select" then
+					selectPart(part, UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+						or UserInputService:IsKeyDown(Enum.KeyCode.RightShift))
+					return
+				end
+				if mode == "Move" then
+					if not contains(part) then
+						selectPart(part, false)
+					end
+					if #selected == 0 then return end
+					isDragging = true
+					dragStart = Mouse.Hit.Position
+					dragSnapshots = snapshot(selected)
+					return
+				end
+
+				local targets = #selected > 0 and selected or (isValidPart(part) and { part } or {})
+				if #targets == 0 then
+					notify("Select one or more parts first.")
+					return
+				end
+
+				if mode == "Delete" then
+					local records = snapshot(targets)
+					pushHistory(records, "Delete")
+					for _, target in ipairs(targets) do
+						pcall(function() target.Parent = nil end)
+					end
+					table.clear(selected)
+					setTarget(nil)
+					notify("Deleted " .. #records .. " part(s).")
+				elseif mode == "Anchor" or mode == "Collide" then
+					local records = snapshot(targets)
+					pushHistory(records, mode == "Anchor" and "Toggle Anchor" or "Toggle Collision")
+					for _, target in ipairs(targets) do
+						pcall(function()
+							if mode == "Anchor" then
+								target.Anchored = not target.Anchored
+							else
+								target.CanCollide = not target.CanCollide
+							end
+						end)
+					end
+					notify(mode .. " toggled for " .. #targets .. " part(s).")
+				elseif mode == "Group Model" or mode == "Group Folder" then
+					if #selected < 2 then
+						notify("Select at least two parts to group.")
+						return
+					end
+					local records = snapshot(selected)
+					local group = Instance.new(mode == "Group Model" and "Model" or "Folder")
+					group.Name = mode == "Group Model" and "DEX_BuildGroup" or "DEX_BuildFolder"
+					group.Parent = workspace
+					for _, target in ipairs(selected) do
+						pcall(function() target.Parent = group end)
+					end
+					table.insert(records, {
+						part = group,
+						parent = nil,
+						cframe = group:IsA("Model") and group:GetPivot() or CFrame.new(),
+						anchored = false,
+						canCollide = false,
+						remove = true,
+					})
+					pushHistory(records, mode)
+					table.clear(selected)
+					notify("Grouped parts into " .. group.ClassName .. ".")
+				end
+				refresh()
+			end
+
+			local function addButton(parent, text, position, size, callback)
+				local button = Instance.new("TextButton")
+				button.Name = text:gsub("%W", "") .. "Button"
+				button.Parent = parent
+				button.Position = position
+				button.Size = size
+				button.BorderSizePixel = 0
+				button.AutoButtonColor = true
+				button.Font = Enum.Font.SourceSans
+				button.TextSize = 14
+				button.Text = text
+				button.BackgroundColor3 = Settings.Theme and Settings.Theme.Button or Color3.fromRGB(45, 45, 52)
+				button.TextColor3 = Settings.Theme and Settings.Theme.Text or Color3.fromRGB(235, 235, 235)
+				return button
+			end
+
+			local function activate()
+				if active then return end
+				active = true
+				track(RunService.RenderStepped:Connect(function()
+					local target
+					pcall(function() target = Mouse.Target end)
+					if target and target:IsA("BasePart") then
+						currentTarget = target
+					else
+						currentTarget = nil
+					end
+					if isDragging and dragStart then
+						local currentPosition = Mouse.Hit.Position
+						local delta = currentPosition - dragStart
+						if delta.Magnitude > 0 then
+							for _, record in ipairs(dragSnapshots or {}) do
+								pcall(function()
+									record.part.CFrame = record.cframe + delta
+								end)
+							end
+							dragStart = currentPosition
+							dragSnapshots = snapshot(selected)
+						end
+					end
+					refresh()
+				end))
+				track(UserInputService.InputBegan:Connect(function(input, processed)
+					if processed then return end
+					if input.UserInputType == Enum.UserInputType.MouseButton1 then
+						local part
+						pcall(function() part = Mouse.Target end)
+						runAction(currentMode, part)
+					elseif input.KeyCode == Enum.KeyCode.Delete then
+						if #selected > 0 then runAction("Delete", currentTarget) end
+					elseif input.KeyCode == Enum.KeyCode.Escape then
+						isDragging = false
+					end
+				end))
+				track(UserInputService.InputEnded:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 then
+						if isDragging then
+							pushHistory(dragSnapshots or {}, "Move")
+							isDragging = false
+							dragStart = nil
+							dragSnapshots = nil
+						end
+					end
+				end))
+			end
+
+			local function deactivate()
+				active = false
+				isDragging = false
+				dragStart = nil
+				dragSnapshots = nil
+				disconnectAll()
+				table.clear(selected)
+				currentTarget = nil
+				refresh()
+			end
+
+			local function setMode(mode)
+				currentMode = mode
+				refresh()
+				notify("Mode: " .. mode)
+			end
+
+			BuildTools.Init = function()
+				window = Lib.Window.new()
+				window:SetTitle("Build Tools")
+				window:Resize(430, 350)
+				BuildTools.Window = window
+
+				local content = window.GuiElems.Content
+				content.ClipsDescendants = true
+				local theme = Settings.Theme or {}
+				local bg = theme.Background or Color3.fromRGB(35, 35, 42)
+
+				local header = Instance.new("TextLabel")
+				header.Parent = content
+				header.BackgroundTransparency = 1
+				header.Position = UDim2.fromOffset(8, 4)
+				header.Size = UDim2.new(1, -16, 0, 24)
+				header.Font = Enum.Font.SourceSansBold
+				header.TextSize = 18
+				header.TextXAlignment = Enum.TextXAlignment.Left
+				header.TextColor3 = theme.Text or Color3.fromRGB(235, 235, 235)
+				header.Text = "BUILD TOOLS"
+				header.BackgroundColor3 = bg
+
+				statusLabel = Instance.new("TextLabel")
+				statusLabel.Parent = content
+				statusLabel.BackgroundTransparency = 1
+				statusLabel.Position = UDim2.fromOffset(8, 30)
+				statusLabel.Size = UDim2.new(1, -16, 0, 22)
+				statusLabel.Font = Enum.Font.SourceSans
+				statusLabel.TextSize = 13
+				statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+				statusLabel.TextColor3 = theme.Text or Color3.fromRGB(220, 220, 220)
+				statusLabel.Text = "Mode: SELECT | Target: none"
+
+				selectionLabel = Instance.new("TextLabel")
+				selectionLabel.Parent = content
+				selectionLabel.BackgroundTransparency = 1
+				selectionLabel.Position = UDim2.fromOffset(8, 52)
+				selectionLabel.Size = UDim2.new(1, -16, 0, 20)
+				selectionLabel.Font = Enum.Font.SourceSans
+				selectionLabel.TextSize = 13
+				selectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+				selectionLabel.TextColor3 = theme.Text or Color3.fromRGB(220, 220, 220)
+				selectionLabel.Text = "Selected parts: 0"
+
+				local modeHolder = Instance.new("Frame")
+				modeHolder.Parent = content
+				modeHolder.BackgroundTransparency = 1
+				modeHolder.Position = UDim2.fromOffset(8, 78)
+				modeHolder.Size = UDim2.new(1, -16, 0, 122)
+				local grid = Instance.new("UIGridLayout")
+				grid.Parent = modeHolder
+				grid.CellPadding = UDim2.fromOffset(6, 6)
+				grid.CellSize = UDim2.new(0.5, -3, 0, 34)
+				grid.SortOrder = Enum.SortOrder.LayoutOrder
+
+				local modes = {
+					{ "Select", "Select Part" },
+					{ "Move", "Move Selected" },
+					{ "Delete", "Delete Selected" },
+					{ "Anchor", "Toggle Anchor" },
+					{ "Collide", "Toggle Collision" },
+					{ "Group Model", "Group as Model" },
+					{ "Group Folder", "Group as Folder" },
+				}
+				for index, entry in ipairs(modes) do
+					local mode, label = entry[1], entry[2]
+					local button = addButton(modeHolder, label, UDim2.new(), UDim2.new(), function() end)
+					button.LayoutOrder = index
+					modeButtons[mode] = button
+					button.Activated:Connect(function() setMode(mode) end)
+				end
+
+				local undoButton = addButton(content, "Undo Last Action", UDim2.new(0, 8, 0, 210), UDim2.new(0.5, -11, 0, 32))
+				undoButton.Activated:Connect(restoreLast)
+				local clearButton = addButton(content, "Clear Selection", UDim2.new(0.5, 3, 0, 210), UDim2.new(0.5, -11, 0, 32))
+				clearButton.Activated:Connect(function()
+					table.clear(selected)
+					refresh()
+				end)
+
+				local help = Instance.new("TextLabel")
+				help.Parent = content
+				help.BackgroundTransparency = 1
+				help.Position = UDim2.fromOffset(8, 250)
+				help.Size = UDim2.new(1, -16, 0, 54)
+				help.Font = Enum.Font.SourceSans
+				help.TextSize = 12
+				help.TextWrapped = true
+				help.TextXAlignment = Enum.TextXAlignment.Left
+				help.TextYAlignment = Enum.TextYAlignment.Top
+				help.TextColor3 = theme.SubText or theme.Text or Color3.fromRGB(190, 190, 190)
+				help.Text = "Click a part in the world to use the selected mode. Hold Shift while selecting to multi-select. Move Selected lets you drag parts; Delete also works from the keyboard. Undo restores the last supported edit."
+
+				highlight = Instance.new("SelectionBox")
+				highlight.Name = "DEXBuildToolsSelection"
+				highlight.LineThickness = 0.035
+				highlight.Color3 = theme.ButtonHover or Color3.fromRGB(90, 145, 255)
+				highlight.Visible = false
+				highlight.Parent = workspace
+
+				window.OnActivate:Connect(activate)
+				window.OnDeactivate:Connect(deactivate)
+				refresh()
+			end
+
+			return BuildTools
+		end
+
+		if gethsfuncs then
+			_G.moduleData = { InitDeps = initDeps, InitAfterMain = initAfterMain, Main = main }
+		else
+			return { InitDeps = initDeps, InitAfterMain = initAfterMain, Main = main }
+		end
+	end,
+
 	["ModelInserter"] = function()
 		local Main, Lib, Apps, Settings
 		local Explorer, Properties, ScriptViewer, Notebook
@@ -34970,7 +35430,7 @@ cloneref = cloneref
 
 local isFsSupported = readfile and writefile and isfile and isfolder and listfiles and delfile and delfolder
 
-local Main, Explorer, Properties, ScriptViewer, Console, SaveInstance, ModelViewer, DefaultSettings, Notebook, Serializer, Lib
+local Main, Explorer, Properties, ScriptViewer, Console, SaveInstance, ModelViewer, DefaultSettings, Notebook, Serializer, Lib, BuildTools
 local ggv = getgenv or nil
 local API, RMD
 
@@ -35106,6 +35566,7 @@ Main = (function()
 		"SaveInstance",
 		"ModelViewer",
 		"ModelInserter",
+		"BuildTools",
 		"SignalMonitor",
 		"RequireHook",
 		"ArgLogger",
@@ -35296,6 +35757,7 @@ Main = (function()
 		SaveInstance = Apps.SaveInstance
 		ModelViewer = Apps.ModelViewer
 		ModelInserter = Apps.ModelInserter
+		BuildTools = Apps.BuildTools
 		Notebook = Apps.Notebook
 
 		local appTable = {
@@ -35306,6 +35768,7 @@ Main = (function()
 			SaveInstance = SaveInstance,
 			ModelViewer = ModelViewer,
 			ModelInserter = ModelInserter,
+			BuildTools = BuildTools,
 			Notebook = Notebook,
 		}
 
@@ -36911,6 +37374,13 @@ Main = (function()
 			Window = ModelInserter.Window,
 		})
 
+		Main.CreateApp({
+			Name = "Build Tools",
+			IconMap = Main.LargeIcons,
+			Icon = "Watcher",
+			Window = BuildTools.Window,
+		})
+
 		if Apps.RemoteSpy and Apps.RemoteSpy.Window then
 			Main.CreateApp({
 				Name = "Remote Spy",
@@ -37138,6 +37608,7 @@ Main = (function()
 		SaveInstance.Init()
 		ModelViewer.Init()
 		ModelInserter.Init()
+		BuildTools.Init()
 
 		Lib.FastWait()
 
