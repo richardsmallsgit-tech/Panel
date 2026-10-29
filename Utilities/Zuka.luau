@@ -137,7 +137,7 @@ local function main(...)
 			USED_GLOBALS = "-- USED GLOBALS: %s.\n",
 			DECOMPILER_REMARK = "-- DECOMPILER REMARK: %s\n",
 		}
-		local CASE_MULTIPLIER = 1
+		local CASE_MULTIPLIER = 227
 		local Luau = {
 			OpCode = {
 				{ name = "NOP", type = "none" },
