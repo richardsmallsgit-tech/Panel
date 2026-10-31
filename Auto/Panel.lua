@@ -1,5 +1,5 @@
 local genv = getgenv()
-local SPOOF_NAME, SPOOF_VER = "ZukaTech", "Madium_Based"
+local SPOOF_NAME, SPOOF_VER = "Solara", "Solara v9.01"
 genv.identifyexecutor = function()
 	return SPOOF_NAME, SPOOF_VER
 end
@@ -10693,8 +10693,9 @@ function Modules.AdminSpoofDemonstration:Enable(targetId, targetName, targetDisp
 			local args = { ... }
 			local method = getnamecallmethod()
 			if
-				Modules.AdminSpoofDemonstration.State.IsSpoofing
-				and (method == "FireServer" or method == "InvokeServer")
+				Modules.AdminSpoofDemonstration.State.IsSpoofing and (
+					method == "FireServer" or method == "InvokeServer"
+				)
 			then
 				for i, arg in ipairs(args) do
 					if arg == Modules.AdminSpoofDemonstration.State.OriginalUserId then
@@ -19760,8 +19761,11 @@ function Modules.NetworkFling:_orbitPart(part, targetPos)
 	end
 	local t = tick() * self.Config.OrbitSpeed
 	local radius = self.Config.OrbitRadius
-	local orbitTarget = targetPos
-		+ Vector3.new(math.sin(t) * radius, math.sin(t * 0.7) * (radius * 0.5), math.cos(t) * radius)
+	local orbitTarget = targetPos + Vector3.new(
+		math.sin(t) * radius,
+		math.sin(t * 0.7) * (radius * 0.5),
+		math.cos(t) * radius
+	)
 	local dir = (orbitTarget - part.Position)
 	local mag = dir.Magnitude
 	if mag < 0.5 then
@@ -38714,15 +38718,6 @@ local function loadstringCmd(url, notif)
 	DoNotif(notif, 3)
 end
 zukacmd(
-	{ Name = "zsniper", Aliases = {}, Description = "For https://www.roblox.com/games/14419907512/Zombie-game" },
-	function()
-		loadstringCmd(
-			"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/sniperZG.lua",
-			"Loading.."
-		)
-	end
-)
-zukacmd(
 	{ Name = "zshotgun", Aliases = {}, Description = "For https://www.roblox.com/games/14419907512/Zombie-game" },
 	function()
 		loadstringCmd(
@@ -38759,12 +38754,6 @@ zukacmd({
 		" Loading.. "
 	)
 end)
-zukacmd({ Name = "Overseer", Aliases = {}, Description = "Better than all." }, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/idioticanisgae-pixel/fourfortyfivepmsundaymarch29build/refs/heads/main/The_Overseer.lua",
-		" Loading.. "
-	)
-end)
 zukacmd({ Name = "autofling", Aliases = { "pwned" }, Description = "Pwned Flinger" }, function()
 	loadstringCmd(
 		"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/Ultimatefling.lua",
@@ -38773,41 +38762,6 @@ zukacmd({ Name = "autofling", Aliases = { "pwned" }, Description = "Pwned Flinge
 end)
 zukacmd({ Name = "wallwalk", Aliases = { "ww" }, Description = "WIP" }, function()
 	loadstringCmd("https://raw.githubusercontent.com/zukatech1/Main-Repo/refs/heads/main/WorkINPro.lua", "wall walk")
-end)
-zukacmd({
-	Name = "plag",
-	Aliases = {},
-	Description = "For https://www.roblox.com/games/115286378269814/Protect-The-House-From-Monsters",
-}, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/GameLaggerPlauncher.lua",
-		"Loading Modification"
-	)
-end)
-zukacmd({
-	Name = "pumpkin",
-	Aliases = {},
-	Description = "For https://www.roblox.com/games/115286378269814/Protect-The-House-From-Monsters",
-}, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/RAPIDFIREPumpkinlauncher.lua",
-		"Loading"
-	)
-end)
-zukacmd(
-	{ Name = "noacid", Aliases = {}, Description = "For https://www.roblox.com/games/14419907512/Zombie-game" },
-	function()
-		loadstringCmd(
-			"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/AntiAcidRainLag.lua",
-			"Loading..."
-		)
-	end
-)
-zukacmd({ Name = "creepyanim", Aliases = { "canim" }, Description = "Uncanny Animation GUI" }, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/legalize8ga-maker/Scripts/refs/heads/main/uncannyanim.lua",
-		"Loaded GUI"
-	)
 end)
 zukacmd({ Name = "swordbot", Aliases = { "sf", "sfbot" }, Description = "Auto Sword Fighter, use E and R" }, function()
 	loadstringCmd(
@@ -38842,25 +38796,6 @@ zukacmd({ Name = "lineofsight", Aliases = {}, Description = "Logger for players 
 		"Loading..."
 	)
 end)
-zukacmd({
-	Name = "zcooldowns",
-	Aliases = { "ncd" },
-	Description = "For https://www.roblox.com/games/14419907512/Zombie-game",
-}, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/legalize8ga-maker/Scripts/refs/heads/main/NocooldownsZombieUpd3.txt",
-		"Loading Cooldownremover..."
-	)
-end)
-zukacmd(
-	{ Name = "zshovel", Aliases = {}, Description = "For https://www.roblox.com/games/14419907512/Zombie-game" },
-	function()
-		loadstringCmd(
-			"https://raw.githubusercontent.com/zukatech1/ZukaTechPanel/refs/heads/main/ShovelAnimation.lua",
-			"Loading Shovel."
-		)
-	end
-)
 zukacmd({ Name = "patchgun", Aliases = {}, Description = "Op backrooms guns" }, function()
 	loadstringCmd(
 		"https://raw.githubusercontent.com/idioticanisgae-pixel/fourfortyfivepmsundaymarch29build/refs/heads/main/ToolOPIfier.lua",
@@ -38896,21 +38831,9 @@ zukacmd({
 		"Loading, Wait a sec."
 	)
 end)
-zukacmd({ Name = "zfucker", Aliases = {}, Description = "zfucker for the zl series." }, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/osukfcdays/zlfucker/refs/heads/main/main.luau",
-		"Loading, Wait a sec."
-	)
-end)
 zukacmd({ Name = "ConvertR6", Aliases = { "r6" }, Description = "Work In progress" }, function()
 	loadstringCmd(
 		"https://raw.githubusercontent.com/idioticanisgae-pixel/RandomScripts/refs/heads/main/r6anim.lua",
-		"Loading, Wait a sec."
-	)
-end)
-zukacmd({ Name = "newantikick", Aliases = {}, Description = "In beta" }, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/idioticanisgae-pixel/RandomScripts/refs/heads/main/AntiKick.lua",
 		"Loading, Wait a sec."
 	)
 end)
@@ -38923,23 +38846,345 @@ zukacmd({
 		game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Overseer.lua")
 	)()
 end)
-zukacmd({ Name = "zukahub", Aliases = { "zuka" }, Description = "Loads the Legacy Zuka Hub" }, function()
-	loadstringCmd(
-		"https://raw.githubusercontent.com/legalize8ga-maker/Scripts/refs/heads/main/ZukaHub.lua",
-		"Loading Zuka's Hub..."
-	)
-end)
-addcmd("btools", {}, function(args, speaker)
+addcmd("dex", {}, function(args, speaker)
 	do
 		print("loading")
 		task.wait(5)
 		warn("done")
 		loadstring(
-			game:HttpGet(
-				"https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Utilities/BuildTools.lua"
-			)
+			game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Dex.lua")
 		)()
 	end
+end)
+addcmd("zmeleenew", {}, function(args, speaker)
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local lp = Players.LocalPlayer
+	local function DoNotif(msg)
+		pcall(function()
+			game:GetService("StarterGui"):SetCore("SendNotification", {
+				Title = "Melee On Crack",
+				Text = msg,
+				Duration = 2,
+			})
+		end)
+	end
+	local function PatchCooldowns()
+		local count = 0
+		for _, v in pairs(getgc(true)) do
+			if type(v) == "table" then
+				if rawget(v, "IsOnCooldown") and rawget(v, "SetCooldown") then
+					v.IsOnCooldown = function()
+						return false
+					end
+					v.SetCooldown = function()
+						return
+					end
+					v.RemoveCooldown = function()
+						return
+					end
+					count = count + 1
+				end
+				if rawget(v, "Cooldown") or rawget(v, "AttackDelay") then
+					pcall(function()
+						v.Cooldown = 0
+						v.AttackDelay = 0
+						if rawget(v, "AttackSpeed") then
+							v.AttackSpeed = 0
+						end
+					end)
+					count = count + 1
+				end
+			end
+		end
+		return count > 0
+	end
+	local function BypassTeams()
+		for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+			if v:IsA("ModuleScript") and (v.Name:lower():find("team") or v.Name:lower():find("check")) then
+				local success, t_mod = pcall(require, v)
+				if success and type(t_mod) == "table" and rawget(t_mod, "CanAttack") then
+					t_mod.CanAttack = function()
+						return true
+					end
+					return true
+				end
+			end
+		end
+		return false
+	end
+	local function SetupStableBlender()
+		local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+		local meleeFolder = remotesFolder:WaitForChild("Melee")
+		local remote = meleeFolder and meleeFolder:FindFirstChild("Damage", true)
+		if not remote or not remote:IsA("RemoteFunction") then
+			warn("--> [Crack]: Melee Remote not found.")
+			return
+		end
+		local oldNamecall
+		oldNamecall = hookmetamethod(
+			game,
+			"__namecall",
+			newcclosure(function(self, ...)
+				local method = getnamecallmethod()
+				local args = { ... }
+				if self == remote and (method == "InvokeServer" or method == "invokeserver") and not checkcaller() then
+					oldNamecall(self, unpack(args))
+					oldNamecall(self, unpack(args))
+					oldNamecall(self, unpack(args))
+					oldNamecall(self, unpack(args))
+					oldNamecall(self, unpack(args))
+				end
+				return oldNamecall(self, ...)
+			end)
+		)
+		DoNotif("Success")
+	end
+	local function StartDebounceFlush()
+		local cachedHitTable = nil
+		for _, v in pairs(getgc(true)) do
+			if type(v) == "table" and rawget(v, "ClearTagged") then
+				cachedHitTable = v
+				break
+			end
+		end
+		if cachedHitTable then
+			RunService.Heartbeat:Connect(function()
+				pcall(cachedHitTable.ClearTagged)
+			end)
+			DoNotif("Crack Smoked, x2 Success")
+		else
+			warn("--> [OVERDRIVE]: Hit-table not found. Multi-hit limited.")
+		end
+	end
+	task.spawn(function()
+		DoNotif("Injecting fent v2...")
+		local cooldownPatched = PatchCooldowns()
+		local teamPatched = BypassTeams()
+		SetupStableBlender()
+		StartDebounceFlush()
+		if cooldownPatched or teamPatched then
+			DoNotif("Lets fucking go!!")
+		end
+	end)
+end)
+addcmd("becomezombie", {}, function(args, speaker)
+	game.TextChatService.TextChannels.RBXGeneral:SendAsync(";zombie")
+end)
+addcmd("zfryingpananimation", { "zpananim" }, function(args, speaker)
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local Modules = ReplicatedStorage.Modules
+	local RaycastHitboxV4 = require(Modules.RaycastHitboxV4)
+	local MeleeFunctions = require(Modules.MeleeFunctions)
+	local Global_Items_Stats = require(ReplicatedStorage.Global_Items_Stats)
+	local IDS = {
+		IDLE = "rbxassetid://15646201947",
+		ATTACK_1 = "rbxassetid://15646194255",
+		ATTACK_2 = "rbxassetid://15646197427",
+	}
+	local Anim_Idle = Instance.new("Animation")
+	Anim_Idle.AnimationId = IDS.IDLE
+	local Anim_Atk1 = Instance.new("Animation")
+	Anim_Atk1.AnimationId = IDS.ATTACK_1
+	local Anim_Atk2 = Instance.new("Animation")
+	Anim_Atk2.AnimationId = IDS.ATTACK_2
+	local List_ = {
+		"Frying Pan",
+		"Wooden Bat",
+		"Stun Baton",
+		"Machete",
+		"Katana",
+		"Golf Club",
+		"Frozen Katana",
+		"Frozen Bat",
+		"Flaming Bat",
+		"Fire Axe",
+		"Classic Sword",
+		"Charged Bat",
+		"Chainsaw",
+		"Bone Sword",
+		"Shovel",
+	}
+	local function TestModule(moduleName)
+		local success, module = pcall(function()
+			return require(ReplicatedStorage.Modules.Items:FindFirstChild(moduleName))
+		end)
+		if not success or type(module) ~= "table" then
+			warn("ugh failure! " .. moduleName)
+			return
+		end
+		module.new = function(toolInstance)
+			local self = setmetatable({}, module)
+			self.LastUsedTime = time() + 0.2
+			self.Events = {}
+			self.AnimationTracks = {}
+			self.Tasks = {}
+			self.Tool = toolInstance
+			self.Character = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
+			local humanoid = self.Character:WaitForChild("Humanoid")
+			local animator = humanoid:WaitForChild("Animator")
+			local hitboxPart = toolInstance:WaitForChild("Model"):WaitForChild("Hitbox")
+			self.HitboxObject = RaycastHitboxV4.new(hitboxPart)
+			MeleeFunctions.ConfigureRaycastHitbox(self.HitboxObject)
+			MeleeFunctions.MeleeEquip(self)
+			self.AnimationTracks.Idle = animator:LoadAnimation(Anim_Idle)
+			self.AnimationTracks.Attack1 = animator:LoadAnimation(Anim_Atk1)
+			self.AnimationTracks.Attack2 = animator:LoadAnimation(Anim_Atk2)
+			self.AnimationTracks.Idle:Play()
+			local function bindMarkers(track)
+				self.Events[track.Animation.AnimationId .. "_Start"] = track
+					:GetMarkerReachedSignal("HitStart")
+					:Connect(function()
+						self.HitboxObject:HitStart()
+					end)
+				self.Events[track.Animation.AnimationId .. "_End"] = track
+					:GetMarkerReachedSignal("HitStop")
+					:Connect(function()
+						self.HitboxObject:HitStop()
+					end)
+			end
+			bindMarkers(self.AnimationTracks.Attack1)
+			bindMarkers(self.AnimationTracks.Attack2)
+			local sequence = 1
+			self.Events.OnActivated = toolInstance.Activated:Connect(function()
+				if self.LastUsedTime < time() and not MeleeFunctions.CheckForCooldown() then
+					local stats = Global_Items_Stats[moduleName]
+					if stats then
+						MeleeFunctions.AddCooldown(stats.Cooldown)
+					end
+					MeleeFunctions.ResetTagged(self)
+					if sequence == 1 then
+						self.AnimationTracks.Attack1:Play()
+						sequence = 2
+					else
+						self.AnimationTracks.Attack2:Play()
+						sequence = 1
+					end
+					if moduleName == "Shovel" then
+						local interaction = workspace:FindFirstChild("Interaction")
+						if interaction and interaction:FindFirstChild("GraveHitbox") then
+							local magnitude = (self.Character.PrimaryPart.Position - interaction.GraveHitbox.Position).Magnitude
+							if magnitude < 8 and interaction:FindFirstChild("Grave") then
+								local grave = interaction.Grave
+								grave.Parent = ReplicatedStorage
+								if interaction:FindFirstChild("GraveSmoke") then
+									interaction.GraveSmoke.Smoke:Emit(50)
+									interaction.GraveSmoke.Dig:Play()
+								end
+								task.delay(30, function()
+									grave.Parent = interaction
+								end)
+							end
+						end
+					end
+				end
+			end)
+			self.HitboxObject.OnHit:Connect(MeleeFunctions.OnHit)
+			return self
+		end
+	end
+	for _, meleeName in ipairs(List_) do
+		task.spawn(TestModule, meleeName)
+	end
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Notification",
+		Text = "Animations Changed",
+		Duration = 5,
+	})
+end)
+addcmd("zshovel", {}, function(args, speaker)
+	game:GetService("ReplicatedStorage").Remotes.Shop.EquipWeapon:InvokeServer("Shovel")
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Notification",
+		Text = "Shovel Spawned",
+		Duration = 5,
+	})
+end)
+addcmd("zminigunsniper", { "zmini" }, function(args, speaker)
+	local plrs = game:GetService("Players")
+	local StarterGui = game:GetService("StarterGui")
+	local StarterPlayer = game:GetService("StarterPlayer")
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local RunService = game:GetService("RunService")
+	local NetworkClient = game:GetService("NetworkClient")
+	local Teams = game:GetService("Teams")
+	local TeleportService = game:GetService("TeleportService")
+	local lplr = plrs.LocalPlayer
+	local char = lplr.Character
+	game:GetService("ReplicatedStorage").Remotes.Shop.EquipWeapon:InvokeServer("Sniper")
+	local Sniper = lplr:FindFirstChild("Sniper", true) or char:FindFirstChild("Sniper", true)
+	local scr = getsenv(Sniper.LocalScript)
+	local shoot = debug.getupvalue(scr.FireGun, 5)
+	local calc = debug.getupvalue(scr.FireGun, 6)
+	local sound = Sniper.Handle["Sniper fire sound"]
+	scr.FireGun = function(...)
+		local sc = sound:Clone()
+		sc.Playing = true
+		sc.Parent = Sniper.Handle
+		task.delay(sc.TimeLength, function()
+			sc:Destroy()
+		end)
+		shoot(Sniper.Flash2.Position, calc(...))
+	end
+	local mouse = lplr:GetMouse()
+	local buttonDown = false
+	mouse.Button1Down:Connect(function()
+		if not buttonDown and Sniper.Parent == char then
+			buttonDown = true
+			repeat
+				coroutine.wrap(scr.FireGun)(mouse.X, mouse.Y)
+				task.wait()
+			until not buttonDown
+		end
+	end)
+	mouse.Button1Up:Connect(function()
+		buttonDown = false
+	end)
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Notification",
+		Text = "Minigun Sniper",
+		Duration = 5,
+	})
+end)
+addcmd("summonacid", { "zacid" }, function(args, speaker)
+	local AcidRemote = game:GetService("ReplicatedStorage").Remotes.ZombieRelated.AcidSpit
+	for coverX = -266, 378, 18 do
+		for coverZ = -268, 378, 18 do
+			AcidRemote:FireServer(Vector3.new(coverX, 255, coverZ), Vector3.new(0, 0, 0))
+		end
+	end
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Notification",
+		Text = "Acid Spawned",
+		Duration = 5,
+	})
+end)
+addcmd("zgamenocooldown", {}, function(args, speaker)
+	ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local MeleeFunctions = require(ReplicatedStorage.Modules.MeleeFunctions)
+	local ShovelModule = require(ReplicatedStorage.Modules.Items.Shovel)
+	local originalShovelNew = ShovelModule.new
+	local SpitModule = require(ReplicatedStorage.Modules.Items.Spit)
+	local originalFireGun = SpitModule.FireGun
+	MeleeFunctions.AddCooldown = function() end
+	MeleeFunctions.CheckForCooldown = function()
+		return false
+	end
+	ShovelModule.new = function(...)
+		local shovelObject = originalShovelNew(...)
+		if shovelObject and shovelObject.AnimationTracks and shovelObject.AnimationTracks.Attack then
+			shovelObject.AnimationTracks.Attack.Speed = 1.00
+		end
+		return shovelObject
+	end
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Notification",
+		Text = "Cooldowns Removed",
+		Duration = 5,
+	})
 end)
 Modules.PartShield = {
 	State = {
@@ -43186,9 +43431,6 @@ addcmd("toucher", { "ta" }, function(args, speaker)
 		end
 	end
 end)
-addcmd("zfuckerr", { "Zfck" }, function(args, speaker)
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/osukfcdays/zlfucker/refs/heads/main/main.luau"))()
-end)
 local function loadAimbotGUI(args)
 	local CoreGui = game:GetService("CoreGui")
 	if CoreGui:FindFirstChild("aim_addon") and not args then
@@ -45184,7 +45426,6 @@ task.spawn(function()
 			TextChatService.ChatInputBarConfiguration.Enabled = not hidden
 		end)
 	end
-	-- Keep Roblox's native chat window and input bar enabled.
 	setDefaultUIHidden(false)
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true)
@@ -45594,7 +45835,7 @@ task.spawn(function()
 		BackgroundColor3 = Color3.fromRGB(18, 18, 22),
 		BorderSizePixel = 0,
 		Text = "",
-		PlaceholderText = "🔍  Filter output...",
+		PlaceholderText = "Filter output...",
 		PlaceholderColor3 = THEME.SubText,
 		TextColor3 = THEME.Text,
 		TextSize = 13,
