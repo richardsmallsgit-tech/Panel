@@ -10693,9 +10693,8 @@ function Modules.AdminSpoofDemonstration:Enable(targetId, targetName, targetDisp
 			local args = { ... }
 			local method = getnamecallmethod()
 			if
-				Modules.AdminSpoofDemonstration.State.IsSpoofing and (
-					method == "FireServer" or method == "InvokeServer"
-				)
+				Modules.AdminSpoofDemonstration.State.IsSpoofing
+				and (method == "FireServer" or method == "InvokeServer")
 			then
 				for i, arg in ipairs(args) do
 					if arg == Modules.AdminSpoofDemonstration.State.OriginalUserId then
@@ -19761,11 +19760,8 @@ function Modules.NetworkFling:_orbitPart(part, targetPos)
 	end
 	local t = tick() * self.Config.OrbitSpeed
 	local radius = self.Config.OrbitRadius
-	local orbitTarget = targetPos + Vector3.new(
-		math.sin(t) * radius,
-		math.sin(t * 0.7) * (radius * 0.5),
-		math.cos(t) * radius
-	)
+	local orbitTarget = targetPos
+		+ Vector3.new(math.sin(t) * radius, math.sin(t * 0.7) * (radius * 0.5), math.cos(t) * radius)
 	local dir = (orbitTarget - part.Position)
 	local mag = dir.Magnitude
 	if mag < 0.5 then
@@ -40337,6 +40333,757 @@ addcmd("audit", {}, function(args, speaker)
 			warn("[DEOBFUSCATOR] setclipboard error:", err)
 			task.wait(2)
 			CopyButton.Text = "Copy Results"
+		end
+	end)
+end)
+addcmd("ztycoon", { "ztyc" }, function(args, speaker)
+	local Players = game:GetService("Players")
+	local GunSettings = game:GetService("ReplicatedStorage").GunSettings
+	local guns = {
+		"AK-47",
+		"AA-12",
+		"AUG",
+		"AWP",
+		"Revolver",
+		"M1 Garand",
+		"Glock",
+		"LMG",
+		"Deagle",
+		"Crossbow",
+		"Cosmic MP7",
+		"Berreta",
+		"Raygun",
+		"Silenced Sniper",
+		"P90",
+		"Tactical Airstrike",
+		"Incendiary Shotgun",
+		"Spider",
+		"Radioactive MP5",
+		"RPG",
+		"MP5",
+		"Tommy Gun",
+	}
+	local overrides = {
+		Debuff = true,
+		DebuffChance = 100,
+		DebuffName = IgniteScript,
+		Auto = false,
+		DelayAfterFiring = 0,
+		LaserBeamStartupDelay = 0,
+		CriticalDamageEnabled = 999999,
+		HeadshotHitmarker = 100,
+		ReloadTime = 0,
+		Lifesteal = 99999,
+		Spread = 0,
+		ChargingTime = 0,
+		HitIgnoreDelay = 0,
+		BurstRate = 0,
+		Recoil = 0,
+		LaserTrailDamage = 999999,
+		DelayBeforeFiring = 0,
+		AmmoPerMag = 999999,
+		Range = 90000,
+		BulletsPerShot = 4,
+		TacticalReloadTime = 0,
+		SwitchTime = 0,
+		AngleXMin = 0,
+		DamageThroughWall = 999999,
+		Accuracy = 0,
+	}
+	local function applyOverrides()
+		for _, gunName in ipairs(guns) do
+			local ok, result = pcall(function()
+				return require(GunSettings[gunName]["1"])
+			end)
+			if not ok then
+				warn(("patched! aint that nice"):format(gunName, result))
+				continue
+			end
+			local mod = result
+			if setreadonly then
+				setreadonly(mod, false)
+			end
+			for key, value in pairs(overrides) do
+				mod[key] = value
+			end
+			if setreadonly then
+				setreadonly(mod, true)
+			end
+		end
+	end
+	applyOverrides()
+	local LocalPlayer = Players.LocalPlayer
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = "GunOverrideGui"
+	ScreenGui.ResetOnSpawn = false
+	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	local ok = pcall(function()
+		ScreenGui.Parent = game:GetService("CoreGui")
+	end)
+	if not ok then
+		ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+	end
+	local Frame = Instance.new("Frame")
+	Frame.Size = UDim2.new(0, 180, 0, 60)
+	Frame.Position = UDim2.new(0.5, -90, 0.02, 0)
+	Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+	Frame.BorderSizePixel = 0
+	Frame.Active = true
+	Frame.Draggable = true
+	Frame.Parent = ScreenGui
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, 8)
+	Corner.Parent = Frame
+	local Stroke = Instance.new("UIStroke")
+	Stroke.Color = Color3.fromRGB(80, 80, 120)
+	Stroke.Thickness = 1.5
+	Stroke.Parent = Frame
+	local Label = Instance.new("TextLabel")
+	Label.Size = UDim2.new(1, -10, 0, 20)
+	Label.Position = UDim2.new(0, 5, 0, 5)
+	Label.BackgroundTransparency = 1
+	Label.Text = "Auto: OFF"
+	Label.TextColor3 = Color3.fromRGB(220, 80, 80)
+	Label.TextSize = 13
+	Label.Font = Enum.Font.GothamBold
+	Label.TextXAlignment = Enum.TextXAlignment.Left
+	Label.Parent = Frame
+	local ToggleBtn = Instance.new("TextButton")
+	ToggleBtn.Size = UDim2.new(1, -20, 0, 26)
+	ToggleBtn.Position = UDim2.new(0, 10, 0, 28)
+	ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+	ToggleBtn.BorderSizePixel = 0
+	ToggleBtn.Text = "Enable Auto"
+	ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ToggleBtn.TextSize = 13
+	ToggleBtn.Font = Enum.Font.GothamBold
+	ToggleBtn.Parent = Frame
+	local BtnCorner = Instance.new("UICorner")
+	BtnCorner.CornerRadius = UDim.new(0, 6)
+	BtnCorner.Parent = ToggleBtn
+	ToggleBtn.MouseButton1Click:Connect(function()
+		overrides.Auto = not overrides.Auto
+		applyOverrides()
+		if overrides.Auto then
+			Label.Text = "Auto: ON"
+			Label.TextColor3 = Color3.fromRGB(100, 220, 100)
+			ToggleBtn.Text = "Disable Auto"
+			ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 90)
+		else
+			Label.Text = "Auto: OFF"
+			Label.TextColor3 = Color3.fromRGB(220, 80, 80)
+			ToggleBtn.Text = "Enable Auto"
+			ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+		end
+	end)
+end)
+addcmd("shiftlock", { "slock" }, function(args, speaker)
+	local ShiftLock = {
+		State = {
+			IsEnabled = false,
+			IsLocked = false,
+			UI = {},
+			Connections = {},
+			Originals = {},
+		},
+		Config = {
+			Icons = {
+				On = "rbxasset://textures/ui/mouseLock_on.png",
+				Off = "rbxasset://textures/ui/mouseLock_off.png",
+			},
+			CameraOffset = Vector3.new(2.2, 0, 0),
+			Smoothing = 0.1,
+			ToggleKey = Enum.KeyCode.LShift,
+		},
+	}
+	function ShiftLock:_makeDraggable(guiObject, dragHandle)
+		local dragging = false
+		local dragStart, startPos
+		dragHandle.InputBegan:Connect(function(input)
+			if
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+			then
+				dragging = true
+				dragStart = input.Position
+				startPos = guiObject.Position
+				local changedConn
+				changedConn = input.Changed:Connect(function()
+					if input.UserInputState == Enum.UserInputState.End then
+						dragging = false
+						changedConn:Disconnect()
+					end
+				end)
+			end
+		end)
+		local moveConn = UserInputService.InputChanged:Connect(function(input)
+			if
+				dragging
+				and (
+					input.UserInputType == Enum.UserInputType.MouseMovement
+					or input.UserInputType == Enum.UserInputType.Touch
+				)
+			then
+				local delta = input.Position - dragStart
+				guiObject.Position = UDim2.new(
+					startPos.X.Scale,
+					startPos.X.Offset + delta.X,
+					startPos.Y.Scale,
+					startPos.Y.Offset + delta.Y
+				)
+			end
+		end)
+		return moveConn
+	end
+	function ShiftLock:_updateLogic()
+		if not LocalPlayer then
+			return
+		end
+		local char = LocalPlayer.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local camera = workspace.CurrentCamera
+		if not (hum and hrp and camera and hum.Health > 0) then
+			return
+		end
+		if self.State.IsLocked then
+			local lookVector = camera.CFrame.LookVector
+			local flatVector = Vector3.new(lookVector.X, 0, lookVector.Z)
+			if flatVector.Magnitude > 1e-4 then
+				hrp.CFrame = hrp.CFrame:Lerp(CFrame.lookAt(hrp.Position, hrp.Position + flatVector.Unit), 0.65)
+			end
+			hum.CameraOffset = hum.CameraOffset:Lerp(self.Config.CameraOffset, self.Config.Smoothing)
+			if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
+				UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+			end
+		else
+			if hum.CameraOffset.Magnitude > 0.01 then
+				hum.CameraOffset = hum.CameraOffset:Lerp(Vector3.zero, self.Config.Smoothing)
+			end
+		end
+	end
+	function ShiftLock:_setLockState(newState)
+		local char = LocalPlayer.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if newState and hum and hum.Sit then
+			return
+		end
+		self.State.IsLocked = newState
+		if newState then
+			if hum then
+				self.State.Originals.AutoRotate = hum.AutoRotate
+				hum.AutoRotate = false
+			end
+		else
+			if hum and self.State.Originals.AutoRotate ~= nil then
+				hum.AutoRotate = self.State.Originals.AutoRotate
+			end
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		end
+		local ui = self.State.UI
+		if ui.Button then
+			local targetColor = newState and Color3.fromRGB(0, 255, 200) or Color3.fromRGB(0, 140, 255)
+			local targetBg = newState and Color3.fromRGB(20, 35, 30) or Color3.fromRGB(25, 25, 30)
+			TweenService:Create(ui.Stroke, TweenInfo.new(0.2), { Color = targetColor, Thickness = newState and 3 or 2 })
+				:Play()
+			TweenService:Create(ui.Button, TweenInfo.new(0.2), { BackgroundColor3 = targetBg }):Play()
+			ui.Icon.Image = newState and self.Config.Icons.On or self.Config.Icons.Off
+		end
+	end
+	function ShiftLock:Enable()
+		if self.State.IsEnabled then
+			return
+		end
+		self.State.IsEnabled = true
+		local ui = self.State.UI
+		ui.ScreenGui = _BM_trackGui(Instance.new("ScreenGui", CoreGui))
+		ui.ScreenGui.Name = "ForensicShiftLock_V2"
+		ui.ScreenGui.ResetOnSpawn = false
+		ui.Button = Instance.new("ImageButton", ui.ScreenGui)
+		ui.Button.Size = UDim2.fromOffset(55, 55)
+		ui.Button.Position = UDim2.new(1, -75, 1, -150)
+		ui.Button.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+		Instance.new("UICorner", ui.Button).CornerRadius = UDim.new(1, 0)
+		ui.Stroke = Instance.new("UIStroke", ui.Button)
+		ui.Stroke.Color = Color3.fromRGB(0, 140, 255)
+		ui.Stroke.Thickness = 2
+		ui.Icon = Instance.new("ImageLabel", ui.Button)
+		ui.Icon.Size = UDim2.fromScale(0.6, 0.6)
+		ui.Icon.Position = UDim2.fromScale(0.2, 0.2)
+		ui.Icon.BackgroundTransparency = 1
+		ui.Icon.Image = self.Config.Icons.Off
+		self.State.Connections.Drag = self:_makeDraggable(ui.Button, ui.Button)
+		self.State.Connections.Main = RunService.RenderStepped:Connect(function()
+			self:_updateLogic()
+		end)
+		self.State.Connections.Input = UserInputService.InputBegan:Connect(function(input, gpe)
+			if not gpe and input.KeyCode == self.Config.ToggleKey then
+				self:_setLockState(not self.State.IsLocked)
+			end
+		end)
+		ui.Button.Activated:Connect(function()
+			self:_setLockState(not self.State.IsLocked)
+		end)
+		self:_setLockState(true)
+		DoNotif("Shift Lock ON. Press Alt to toggle.", 3)
+		_BM.ShiftLockDisable = function()
+			self:Disable()
+		end
+	end
+	function ShiftLock:Disable()
+		if not self.State.IsEnabled then
+			return
+		end
+		self:_setLockState(false)
+		for _, conn in pairs(self.State.Connections) do
+			conn:Disconnect()
+		end
+		if self.State.UI.ScreenGui then
+			self.State.UI.ScreenGui:Destroy()
+		end
+		self.State.IsEnabled = false
+		table.clear(self.State.Connections)
+		self.State.UI = {}
+		DoNotif("Shift Lock disabled.", 2)
+	end
+	function ShiftLock:Toggle()
+		if self.State.IsEnabled then
+			self:Disable()
+		else
+			self:Enable()
+		end
+	end
+	ShiftLock:Enable()
+end)
+addcmd("pv5", {}, function(args, speaker)
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local Workspace = game:GetService("Workspace")
+	local LP = Players.LocalPlayer
+	local CFG = {
+		VELOCITY = 750,
+		MAX_FORCE = 1e9,
+		OWN_INTERVAL = 0.20,
+		SIM_INTERVAL = 0.80,
+		PART_SETTLE = 0.08,
+		RADIUS = 100,
+		SWEEP_ALL = false,
+		RADIUS_MODE = false,
+	}
+	local S = {
+		Active = false,
+		Targets = {},
+		Managed = {},
+		Conns = {},
+		StartTime = 0,
+	}
+	local function SetSimRadius(v)
+		pcall(sethiddenproperty or function() end, LP, "SimulationRadius", v)
+		pcall(function()
+			LP.SimulationRadius = v
+		end)
+	end
+	local function IsManageable(p)
+		if not (p and p.Parent) then
+			return false
+		end
+		if not p:IsA("BasePart") then
+			return false
+		end
+		if p.Anchored then
+			return false
+		end
+		local char = LP.Character
+		if char and p:IsDescendantOf(char) then
+			return false
+		end
+		if p.Parent:FindFirstChildOfClass("Humanoid") then
+			return false
+		end
+		return true
+	end
+	local function TryClaim(part)
+		SetSimRadius(math.huge)
+		pcall(function()
+			part:SetNetworkOwner(LP)
+		end)
+	end
+	local function GetTargetHRP()
+		for player in pairs(S.Targets) do
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				return hrp
+			end
+		end
+	end
+	local function ReleasePart(part)
+		local d = S.Managed[part]
+		if not d then
+			return
+		end
+		if d.conn then
+			d.conn:Disconnect()
+		end
+		pcall(function()
+			if d.bv and d.bv.Parent then
+				d.bv:Destroy()
+			end
+		end)
+		S.Managed[part] = nil
+	end
+	local function AttachBV(part)
+		if S.Managed[part] then
+			return
+		end
+		if not IsManageable(part) then
+			return
+		end
+		if not S.Active then
+			return
+		end
+		TryClaim(part)
+		local bv = Instance.new("BodyVelocity")
+		bv.Name = "_GSF5"
+		bv.MaxForce = Vector3.new(CFG.MAX_FORCE, CFG.MAX_FORCE, CFG.MAX_FORCE)
+		bv.Velocity = Vector3.zero
+		bv.Parent = part
+		local lastClaim = 0
+		local conn = RunService.Heartbeat:Connect(function()
+			if not S.Active or not IsManageable(part) then
+				ReleasePart(part)
+				return
+			end
+			local now = os.clock()
+			if now - lastClaim >= CFG.OWN_INTERVAL then
+				TryClaim(part)
+				lastClaim = now
+			end
+			local hrp = GetTargetHRP()
+			if not (hrp and bv and bv.Parent) then
+				return
+			end
+			if CFG.RADIUS_MODE then
+				local dist = (part.Position - hrp.Position).Magnitude
+				if dist > CFG.RADIUS then
+					bv.Velocity = Vector3.zero
+					return
+				end
+			end
+			local dir = hrp.Position - part.Position
+			if dir.Magnitude > 0.1 then
+				bv.Velocity = dir.Unit * CFG.VELOCITY
+			end
+		end)
+		S.Managed[part] = { bv = bv, conn = conn }
+	end
+	local function StopSession()
+		S.Active = false
+		S.Targets = {}
+		local snap = {}
+		for p in pairs(S.Managed) do
+			snap[#snap + 1] = p
+		end
+		for _, p in ipairs(snap) do
+			ReleasePart(p)
+		end
+		S.Managed = {}
+		for _, c in ipairs(S.Conns) do
+			c:Disconnect()
+		end
+		S.Conns = {}
+	end
+	local function StartSession(targets)
+		if S.Active then
+			StopSession()
+		end
+		S.Active = true
+		S.StartTime = os.clock()
+		S.Targets = {}
+		for _, p in ipairs(targets) do
+			S.Targets[p] = true
+		end
+		task.spawn(function()
+			for _, v in ipairs(Workspace:GetDescendants()) do
+				if S.Active then
+					AttachBV(v)
+				end
+			end
+		end)
+		local addedConn = Workspace.DescendantAdded:Connect(function(v)
+			if S.Active then
+				task.delay(CFG.PART_SETTLE, function()
+					AttachBV(v)
+				end)
+			end
+		end)
+		local removedConn = Workspace.DescendantRemoving:Connect(function(v)
+			if S.Managed[v] then
+				ReleasePart(v)
+			end
+		end)
+		local lastSim = 0
+		local simConn = RunService.Heartbeat:Connect(function()
+			local now = os.clock()
+			if now - lastSim >= CFG.SIM_INTERVAL then
+				SetSimRadius(math.huge)
+				lastSim = now
+			end
+		end)
+		table.insert(S.Conns, addedConn)
+		table.insert(S.Conns, removedConn)
+		table.insert(S.Conns, simConn)
+	end
+	local GUI_PARENT = (gethui and gethui()) or LP.PlayerGui
+	do
+		local old = GUI_PARENT:FindFirstChild("GSF_v5")
+		if old then
+			old:Destroy()
+		end
+	end
+	local SG = Instance.new("ScreenGui")
+	SG.Name = "GSF_v5"
+	SG.ResetOnSpawn = false
+	SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	SG.Parent = GUI_PARENT
+	local function MkFrame(parent, size, pos, color, radius)
+		local f = Instance.new("Frame", parent)
+		f.Size = size
+		f.Position = pos
+		f.BackgroundColor3 = color
+		f.BorderSizePixel = 0
+		if radius then
+			Instance.new("UICorner", f).CornerRadius = UDim.new(0, radius)
+		end
+		return f
+	end
+	local function MkLabel(parent, size, pos, text, tsize, color, xalign)
+		local l = Instance.new("TextLabel", parent)
+		l.Size = size
+		l.Position = pos
+		l.BackgroundTransparency = 1
+		l.Text = text
+		l.Font = Enum.Font.Code
+		l.TextSize = tsize or 12
+		l.TextColor3 = color or Color3.fromRGB(210, 210, 210)
+		l.TextXAlignment = xalign or Enum.TextXAlignment.Left
+		return l
+	end
+	local function MkStroke(parent, color, thickness)
+		local s = Instance.new("UIStroke", parent)
+		s.Color = color or Color3.fromRGB(50, 50, 50)
+		s.Thickness = thickness or 1
+		return s
+	end
+	local function MkBtn(parent, size, pos, text, tsize)
+		local b = Instance.new("TextButton", parent)
+		b.Size = size
+		b.Position = pos
+		b.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+		b.Text = text
+		b.TextColor3 = Color3.fromRGB(160, 160, 160)
+		b.Font = Enum.Font.Code
+		b.TextSize = tsize or 11
+		b.AutoButtonColor = false
+		b.BorderSizePixel = 0
+		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
+		MkStroke(b, Color3.fromRGB(40, 40, 40))
+		return b
+	end
+	local W = MkFrame(SG, UDim2.new(0, 285, 0, 210), UDim2.new(0.05, 0, 0.35, 0), Color3.fromRGB(8, 8, 8), 8)
+	W.Active = true
+	W.Draggable = true
+	MkStroke(W, Color3.fromRGB(42, 42, 42))
+	local TBar = MkFrame(W, UDim2.new(1, 0, 0, 36), UDim2.new(0, 0, 0, 0), Color3.fromRGB(13, 13, 13), 8)
+	MkFrame(TBar, UDim2.new(1, 0, 0.5, 0), UDim2.new(0, 0, 0.5, 0), Color3.fromRGB(13, 13, 13))
+	MkLabel(TBar, UDim2.new(1, -50, 1, 0), UDim2.new(0, 10, 0, 0), "THE ONE", 13, Color3.fromRGB(195, 195, 195))
+	local Dot = MkFrame(TBar, UDim2.new(0, 8, 0, 8), UDim2.new(1, -34, 0.5, -4), Color3.fromRGB(50, 50, 50), 100)
+	local MinBtn = Instance.new("TextButton", TBar)
+	MinBtn.Size = UDim2.new(0, 20, 0, 20)
+	MinBtn.Position = UDim2.new(1, -20, 0.5, -10)
+	MinBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+	MinBtn.Text = "–"
+	MinBtn.TextColor3 = Color3.fromRGB(130, 130, 130)
+	MinBtn.Font = Enum.Font.Code
+	MinBtn.TextSize = 14
+	MinBtn.AutoButtonColor = false
+	MinBtn.BorderSizePixel = 0
+	Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 4)
+	local Body = MkFrame(W, UDim2.new(1, 0, 1, -36), UDim2.new(0, 0, 0, 36), Color3.fromRGB(8, 8, 8))
+	local SweepAllBtn = MkBtn(Body, UDim2.new(0, 118, 0, 22), UDim2.new(0.06, 0, 0, 8), "SWEEP ALL: OFF", 10)
+	local RadiusBtn = MkBtn(Body, UDim2.new(0, 118, 0, 22), UDim2.new(0.5, 0, 0, 8), "RADIUS: OFF", 10)
+	local RadiusLabel =
+		MkLabel(Body, UDim2.new(0.88, 0, 0, 12), UDim2.new(0.06, 0, 0, 34), "", 10, Color3.fromRGB(65, 65, 65))
+	local Input = Instance.new("TextBox", Body)
+	Input.Size = UDim2.new(0.88, 0, 0, 32)
+	Input.Position = UDim2.new(0.06, 0, 0, 50)
+	Input.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	Input.PlaceholderText = "Target username..."
+	Input.PlaceholderColor3 = Color3.fromRGB(65, 65, 65)
+	Input.Text = ""
+	Input.TextColor3 = Color3.fromRGB(215, 215, 215)
+	Input.Font = Enum.Font.Code
+	Input.TextSize = 12
+	Input.ClearTextOnFocus = false
+	Input.BorderSizePixel = 0
+	Instance.new("UICorner", Input).CornerRadius = UDim.new(0, 5)
+	MkStroke(Input, Color3.fromRGB(32, 32, 32))
+	local Status =
+		MkLabel(Body, UDim2.new(0.88, 0, 0, 15), UDim2.new(0.06, 0, 0, 88), "", 11, Color3.fromRGB(85, 85, 85))
+	local Timer =
+		MkLabel(Body, UDim2.new(0.88, 0, 0, 13), UDim2.new(0.06, 0, 0, 105), "", 10, Color3.fromRGB(50, 50, 50))
+	local ActBtn = Instance.new("TextButton", Body)
+	ActBtn.Size = UDim2.new(0.88, 0, 0, 36)
+	ActBtn.Position = UDim2.new(0.06, 0, 0, 122)
+	ActBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	ActBtn.Text = "SWEEP & FLING"
+	ActBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+	ActBtn.Font = Enum.Font.Code
+	ActBtn.TextSize = 13
+	ActBtn.AutoButtonColor = false
+	ActBtn.BorderSizePixel = 0
+	Instance.new("UICorner", ActBtn).CornerRadius = UDim.new(0, 5)
+	local ABStroke = MkStroke(ActBtn, Color3.fromRGB(45, 45, 45))
+	local minimized = false
+	MinBtn.MouseButton1Click:Connect(function()
+		minimized = not minimized
+		Body.Visible = not minimized
+		W.Size = minimized and UDim2.new(0, 285, 0, 36) or UDim2.new(0, 285, 0, 210)
+		MinBtn.Text = minimized and "+" or "–"
+	end)
+	SweepAllBtn.MouseButton1Click:Connect(function()
+		if S.Active then
+			return
+		end
+		CFG.SWEEP_ALL = not CFG.SWEEP_ALL
+		if CFG.SWEEP_ALL then
+			SweepAllBtn.TextColor3 = Color3.fromRGB(160, 130, 40)
+			SweepAllBtn.Text = "SWEEP ALL: ON"
+			Input.TextTransparency = 0.55
+		else
+			SweepAllBtn.TextColor3 = Color3.fromRGB(160, 160, 160)
+			SweepAllBtn.Text = "SWEEP ALL: OFF"
+			Input.TextTransparency = 0
+		end
+	end)
+	RadiusBtn.MouseButton1Click:Connect(function()
+		if S.Active then
+			return
+		end
+		CFG.RADIUS_MODE = not CFG.RADIUS_MODE
+		if CFG.RADIUS_MODE then
+			RadiusBtn.TextColor3 = Color3.fromRGB(80, 140, 200)
+			RadiusBtn.Text = "RADIUS: ON"
+			RadiusLabel.Text = string.format("within %d studs of target", CFG.RADIUS)
+		else
+			RadiusBtn.TextColor3 = Color3.fromRGB(160, 160, 160)
+			RadiusBtn.Text = "RADIUS: OFF"
+			RadiusLabel.Text = ""
+		end
+	end)
+	local function SetUI(active)
+		if active then
+			ActBtn.Text = "HALT"
+			ActBtn.BackgroundColor3 = Color3.fromRGB(95, 18, 18)
+			ABStroke.Color = Color3.fromRGB(155, 32, 32)
+			Dot.BackgroundColor3 = Color3.fromRGB(175, 38, 38)
+		else
+			ActBtn.Text = "SWEEP & FLING"
+			ActBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+			ABStroke.Color = Color3.fromRGB(45, 45, 45)
+			Dot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			Status.Text = ""
+			Timer.Text = ""
+		end
+	end
+	ActBtn.MouseEnter:Connect(function()
+		if not S.Active then
+			ActBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+		end
+	end)
+	ActBtn.MouseLeave:Connect(function()
+		if not S.Active then
+			ActBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		end
+	end)
+	RunService.Heartbeat:Connect(function()
+		if not S.Active then
+			return
+		end
+		local elapsed = math.floor(os.clock() - S.StartTime)
+		local m = math.floor(elapsed / 60)
+		local sec = elapsed % 60
+		local n = 0
+		for _ in pairs(S.Managed) do
+			n = n + 1
+		end
+		Timer.Text = string.format("running %d:%02d  |  parts: %d", m, sec, n)
+	end)
+	ActBtn.MouseButton1Click:Connect(function()
+		if S.Active then
+			StopSession()
+			SetUI(false)
+			return
+		end
+		if CFG.SWEEP_ALL then
+			local all = {}
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p ~= LP then
+					all[#all + 1] = p
+				end
+			end
+			if #all == 0 then
+				Status.Text = "no other players"
+				Status.TextColor3 = Color3.fromRGB(175, 55, 55)
+				return
+			end
+			Status.Text = string.format("targeting %d player(s)", #all)
+			Status.TextColor3 = Color3.fromRGB(85, 150, 85)
+			SetUI(true)
+			StartSession(all)
+			return
+		end
+		local q = Input.Text:lower():match("^%s*(.-)%s*$")
+		if q == "" then
+			Status.Text = "enter a username first"
+			Status.TextColor3 = Color3.fromRGB(175, 55, 55)
+			return
+		end
+		local found
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= LP then
+				if p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true) then
+					found = p
+					break
+				end
+			end
+		end
+		if not found then
+			Status.Text = "player not found"
+			Status.TextColor3 = Color3.fromRGB(175, 55, 55)
+			return
+		end
+		Status.Text = "target: " .. found.Name
+		Status.TextColor3 = Color3.fromRGB(85, 150, 85)
+		SetUI(true)
+		StartSession({ found })
+	end)
+	Players.PlayerRemoving:Connect(function(p)
+		if S.Active and S.Targets[p] then
+			S.Targets[p] = nil
+			local remaining = 0
+			for _ in pairs(S.Targets) do
+				remaining = remaining + 1
+			end
+			if remaining == 0 then
+				StopSession()
+				SetUI(false)
+				Status.Text = "target left the game"
+				Status.TextColor3 = Color3.fromRGB(175, 55, 55)
+			else
+				Status.Text = string.format("%d target(s) remaining", remaining)
+				Status.TextColor3 = Color3.fromRGB(85, 150, 85)
+			end
 		end
 	end)
 end)
