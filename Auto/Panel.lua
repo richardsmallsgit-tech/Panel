@@ -54787,3 +54787,9 @@ return {
 	setconstant = setconstant,
 	getprotos = getprotos,
 }
+
+do
+task.spawn(function()
+    game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
+end)
+end
