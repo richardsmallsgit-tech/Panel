@@ -712,7 +712,7 @@ local function main(...)
 		local function isGlobal(key)
 			return ROBLOX_GLOBALS[key] == true
 		end
-		local function Decompile(bytecode)
+		local function Decompile(bytecode, options)
 			local bytecodeVersion, typeEncodingVersion
 			Reader:Set(7)
 			local reader = Reader.new(bytecode)
@@ -2911,7 +2911,12 @@ local function main(...)
 										receiverR = prev.usedRegisters[2]
 									end
 								end
-								callBody ..= Rpre(receiverR) .. nmMethod .. "("
+								-- NAMECALL writes its callable/self pair into A/A+1.  When A aliases
+								-- the receiver register, Rpre() at the CALL site sees the
+								-- post-NAMECALL generation and invents a synthetic local.
+								-- NAMECALL has an AUX marker before it, so i-2 is pre-NAMECALL.
+								local receiverExpr = fmtReg(receiverR, i - 2)
+								callBody ..= receiverExpr .. nmMethod .. "("
 								if
 									nArgs == -1
 									and openCallTail
@@ -3421,14 +3426,440 @@ local function main(...)
 				end
 				return finalResult
 			end
+			-- Semantic IR + deliberately conservative source backend.  This backend is
+			-- opt-in (`Decompile(bytecode, { mode = "safe" })` / CLI `--safe`).  It
+			-- emits source only when every instruction in the selected prototype is
+			-- covered by the subset below; otherwise it returns an explicit failure
+			-- instead of guessing and silently changing program behavior.
+			local function decompileSafeSubset(mainProtoId, registerActions, protoTable)
+				local protoActions = registerActions[mainProtoId]
+				local proto = protoTable[mainProtoId]
+				if not protoActions or not proto then
+					return nil, "main prototype metadata is missing"
+				end
+				local actions = protoActions.actions or {}
+				local constants = proto.constants or {}
+				local ir = {
+					protoId = mainProtoId,
+					maxStackSize = proto.maxStackSize,
+					numParams = proto.numParams,
+					numUpvalues = proto.numUpvalues,
+					isVarArg = proto.isVarArg,
+					constants = constants,
+					upvalues = proto.captures,
+					children = proto.innerProtos,
+					instructions = {}, blocks = {}, blockAt = {}, edges = {},
+				}
+				local actionToIR = {}
+				local pcToIR = {}
+				for actionIndex, action in ipairs(actions) do
+					if not action.hide and action.opCode then
+						local ins = {
+							actionIndex = actionIndex,
+							pc = action.bytecodePC or (actionIndex - 1),
+							op = action.opCode.name,
+							registers = table.clone(action.usedRegisters or {}),
+							operands = table.clone(action.extraData or {}),
+							line = proto.instructionLineInfo and proto.instructionLineInfo[action.bytecodePC or actionIndex] or nil,
+							aux = nil,
+						}
+						if ins.op == "GETGLOBAL" or ins.op == "SETGLOBAL" then
+							ins.aux = ins.operands[1]
+						elseif ins.op == "GETIMPORT" then
+							ins.aux = ins.operands[2]
+						elseif ins.op == "NAMECALL" then
+							ins.aux = ins.operands[2]
+						elseif ins.op == "GETTABLEKS" or ins.op == "SETTABLEKS" then
+							ins.aux = ins.operands[2]
+						elseif ins.op == "NEWTABLE" or ins.op == "SETLIST" then
+							ins.aux = ins.operands[2] or ins.operands[1]
+						end
+						-- Explicit register effects keep semantic reads/writes separate
+						-- from the legacy mixed-purpose usedRegisters array.
+						ins.reads, ins.writes = {}, {}
+						local rr, ee = ins.registers, ins.operands
+						local ra, rb, rc = rr[1], rr[2], rr[3]
+						local function read(register) if type(register) == "number" then ins.reads[#ins.reads + 1] = register end end
+						local function write(register) if type(register) == "number" then ins.writes[#ins.writes + 1] = register end end
+						local function readRange(first, count) if type(first) == "number" and type(count) == "number" then for register = first, first + count - 1 do read(register) end end end
+						if ins.op == "MOVE" then read(rb); write(ra)
+						elseif ins.op == "SETGLOBAL" then read(ra)
+						elseif ins.op == "GETGLOBAL" or ins.op == "GETIMPORT" or ins.op == "LOADNIL" or ins.op == "LOADB" or ins.op == "LOADN" or ins.op == "LOADK" or ins.op == "NEWTABLE" then write(ra)
+						elseif ins.op == "GETTABLE" then read(rb); read(rc); write(ra)
+						elseif ins.op == "GETTABLEKS" or ins.op == "GETTABLEN" then read(rb); write(ra)
+						elseif ins.op == "SETTABLE" then read(ra); read(rb); read(rc)
+						elseif ins.op == "SETTABLEKS" or ins.op == "SETTABLEN" then read(ra); read(rb)
+						elseif ins.op == "NAMECALL" then read(rb); write(ra); if type(ra) == "number" then write(ra + 1) end
+						elseif ins.op == "CALL" or ins.op == "CALLFB" then readRange(ra, (ee[1] or 1)); if (ee[2] or 1) > 1 then for register = ra, ra + ee[2] - 2 do write(register) end end
+						elseif ins.op == "RETURN" then if (ee[1] or 0) > 1 then readRange(ra, ee[1] - 1) end
+						elseif ins.op == "ADD" or ins.op == "SUB" or ins.op == "MUL" or ins.op == "DIV" or ins.op == "MOD" or ins.op == "POW" or ins.op == "IDIV" or ins.op == "AND" or ins.op == "OR" then read(rb); read(rc); write(ra)
+						elseif ins.op == "ADDK" or ins.op == "SUBK" or ins.op == "MULK" or ins.op == "DIVK" or ins.op == "MODK" or ins.op == "POWK" or ins.op == "IDIVK" or ins.op == "ANDK" or ins.op == "ORK" then read(rb); write(ra)
+						elseif ins.op == "SUBRK" or ins.op == "DIVRK" then read(rb); write(ra)
+						elseif ins.op == "NOT" or ins.op == "MINUS" or ins.op == "LENGTH" then read(rb); write(ra)
+						elseif ins.op == "CONCAT" then readRange(rb, rc - rb + 1); write(ra)
+						end
+						ins.action = action
+						local index = #ir.instructions + 1
+						ir.instructions[index] = ins
+						ins.irIndex = index
+						actionToIR[actionIndex] = index
+						pcToIR[ins.pc] = index
+					end
+				end
+				-- Build block boundaries and edges from original bytecode PCs.  This
+				-- representation is retained even when the safe backend rejects branches.
+				local leaders = { [1] = true }
+				local branchOps = {
+					JUMP = true, JUMPBACK = true, JUMPX = true,
+					JUMPIF = true, JUMPIFNOT = true, JUMPIFEQ = true, JUMPIFLE = true,
+					JUMPIFLT = true, JUMPIFNOTEQ = true, JUMPIFNOTLE = true, JUMPIFNOTLT = true,
+					JUMPXEQKNIL = true, JUMPXEQKB = true, JUMPXEQKN = true, JUMPXEQKS = true,
+					FORNPREP = true, FORNLOOP = true, FORGLOOP = true, FORGPREP = true,
+					FORGPREP_INEXT = true, FORGPREP_NEXT = true,
+				}
+				for index, ins in ipairs(ir.instructions) do
+					if branchOps[ins.op] then
+						local delta = ins.operands[1]
+						if type(delta) == "number" then
+							local target = pcToIR[ins.pc + delta + 1]
+							if target then leaders[target] = true; ins.target = target end
+						end
+						if index < #ir.instructions then leaders[index + 1] = true end
+					elseif ins.op == "RETURN" and index < #ir.instructions then
+						leaders[index + 1] = true
+					end
+				end
+				local leaderList = {}
+				for index in pairs(leaders) do leaderList[#leaderList + 1] = index end
+				table.sort(leaderList)
+				for blockIndex, first in ipairs(leaderList) do
+					local block = { id = blockIndex, first = first, last = (leaderList[blockIndex + 1] or (#ir.instructions + 1)) - 1 }
+					ir.blocks[blockIndex] = block
+					for index = block.first, block.last do ir.blockAt[index] = blockIndex end
+				end
+				for blockIndex, block in ipairs(ir.blocks) do
+					local last = ir.instructions[block.last]
+					local nextBlock = ir.blocks[blockIndex + 1]
+					if last and last.target and ir.blockAt[last.target] then
+						ir.edges[#ir.edges + 1] = { from = blockIndex, to = ir.blockAt[last.target], kind = "taken" }
+					end
+					if nextBlock and (not last or (last.op ~= "JUMP" and last.op ~= "JUMPBACK" and last.op ~= "JUMPX" and last.op ~= "RETURN")) then
+						ir.edges[#ir.edges + 1] = { from = blockIndex, to = nextBlock.id, kind = "fallthrough" }
+					end
+				end
+				local function fail(ins, why)
+					return nil, string.format("%s at bytecode PC %s (prototype %s)", why, tostring(ins and ins.pc or "?"), tostring(mainProtoId))
+				end
+				local function quote(value)
+					return toEscapedString(tostring(value))
+				end
+				local function constant(index)
+					local item = constants[(tonumber(index) or -1) + 1]
+					if not item then return nil, "constant index out of range: " .. tostring(index) end
+					local value = item.value
+					if value == nil then return "nil" end
+					if type(value) == "string" then return quote(value) end
+					if type(value) == "boolean" then return value and "true" or "false" end
+					if type(value) == "number" then
+						if value ~= value or value == math.huge or value == -math.huge then
+							return nil, "non-finite numeric constant is unsupported"
+						end
+						return string.format("%.17g", value)
+					end
+					return nil, "constant type " .. tostring(item.type) .. " is not supported by safe source mode"
+				end
+				local safeKeywords = {}
+				for _, keyword in ipairs({
+					"and", "break", "do", "else", "elseif", "end", "false", "for", "function",
+					"if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while",
+				}) do safeKeywords[keyword] = true end
+				local function validIdentifierPath(path)
+					if type(path) ~= "string" then return false end
+					local first, rest = path:match("^([%a_][%w_]*)(.*)$")
+					if not first or safeKeywords[first] then return false end
+					while rest ~= "" do
+						local segment, tail = rest:match("^%.([%a_][%w_]*)(.*)$")
+						if not segment or safeKeywords[segment] then return false end
+						rest = tail
+					end
+					return true
+				end
+				local function globalExpr(name)
+					if type(name) ~= "string" or name == "" then return nil end
+					if name:match("^[%a_][%w_]*$") and not safeKeywords[name] then return name end
+					return "_G[" .. quote(name) .. "]"
+				end
+				local regs, lines = {}, {}
+				local tempId = 0
+				local function temp(code, hint)
+					tempId += 1
+					local name = "__zuka_" .. (hint or "v") .. tostring(tempId)
+					lines[#lines + 1] = "local " .. name .. " = " .. code
+					return { code = name, materialized = true }
+				end
+				local function getReg(register, ins)
+					local value = regs[register]
+					if not value then return nil, "read of uninitialized register R" .. tostring(register) .. " at PC " .. tostring(ins.pc) end
+					return value
+				end
+				local function getCode(register, ins)
+					local value, err = getReg(register, ins)
+					if not value then return nil, err end
+					return value.code
+				end
+				local function setValue(register, value)
+					regs[register] = value
+				end
+				local function materialize(register, hint)
+					local value = regs[register]
+					if value and not value.materialized then regs[register] = temp(value.code, hint) end
+				end
+				local function setGlobalValue(register, code, ins)
+					-- Keep the common GETGLOBAL -> NAMECALL receiver path symbolic so
+					-- `game:GetService(...)` stays a global expression, not a synthetic
+					-- local. Other global reads are captured at their bytecode point.
+					local nextIns = ir.instructions[ins.irIndex + 1]
+					if nextIns and nextIns.op == "NAMECALL" and nextIns.registers[2] == register then
+						setValue(register, { code = code, global = true })
+					else
+						setValue(register, temp(code, "global"))
+					end
+				end
+				local function keyExpr(key)
+					if type(key) == "string" and key:match("^[%a_][%w_]*$") and not safeKeywords[key] then return "." .. key end
+					return "[" .. quote(key) .. "]"
+				end
+				local supported = {
+					NOP = true, BREAK = true, COVERAGE = true, NATIVECALL = true,
+					LOADNIL = true, LOADB = true, LOADN = true, LOADK = true, MOVE = true,
+					GETGLOBAL = true, SETGLOBAL = true, GETIMPORT = true,
+					GETTABLE = true, SETTABLE = true, GETTABLEKS = true, SETTABLEKS = true,
+					GETTABLEN = true, SETTABLEN = true, NEWTABLE = true,
+					NAMECALL = true, CALL = true, RETURN = true,
+					ADD = true, SUB = true, MUL = true, DIV = true, MOD = true, POW = true,
+					ADDK = true, SUBK = true, MULK = true, DIVK = true, MODK = true, POWK = true,
+					AND = true, OR = true, ANDK = true, ORK = true, CONCAT = true,
+					NOT = true, MINUS = true, LENGTH = true, IDIV = true, IDIVK = true,
+					SUBRK = true, DIVRK = true,
+					FASTCALL = true, FASTCALL1 = true, FASTCALL2 = true, FASTCALL2K = true, FASTCALL3 = true,
+					PREPVARARGS = true,
+				}
+				for _, ins in ipairs(ir.instructions) do
+					if not supported[ins.op] then return fail(ins, "unsupported construct " .. tostring(ins.op)) end
+					if branchOps[ins.op] then return fail(ins, "control-flow construct requires structuring and is not in the safe linear subset") end
+				end
+				if proto.isVarArg then
+					return nil, "vararg prototype is not in the safe linear subset (prototype " .. tostring(mainProtoId) .. ")"
+				end
+				if (proto.numUpvalues or 0) > 0 then
+					return nil, "prototype captures upvalues; closure semantics are not in the safe linear subset (prototype " .. tostring(mainProtoId) .. ")"
+				end
+				local binary = {
+					ADD = "+", SUB = "-", MUL = "*", DIV = "/", MOD = "%", POW = "^",
+					IDIV = "//", AND = "and", OR = "or",
+				}
+				local binaryK = {
+					ADDK = "+", SUBK = "-", MULK = "*", DIVK = "/", MODK = "%", POWK = "^",
+					IDIVK = "//", ANDK = "and", ORK = "or",
+				}
+				for _, ins in ipairs(ir.instructions) do
+					local op, r, e = ins.op, ins.registers, ins.operands
+					local a, b, c = r[1], r[2], r[3]
+					if op == "NOP" or op == "BREAK" or op == "COVERAGE" or op == "NATIVECALL" or op:match("^FASTCALL") or op == "PREPVARARGS" then
+						continue
+					elseif op == "LOADNIL" then
+						setValue(a, { code = "nil" })
+					elseif op == "LOADB" then
+						if (e[2] or 0) ~= 0 then return fail(ins, "LOADB skip-count control flow is unsupported") end
+						setValue(a, { code = ((e[1] or 0) ~= 0) and "true" or "false" })
+					elseif op == "LOADN" then
+						setValue(a, { code = tostring(e[1] or 0) })
+					elseif op == "LOADK" then
+						local value, err = constant(e[1]); if not value then return fail(ins, err) end
+						setValue(a, { code = value })
+					elseif op == "MOVE" then
+						local value, err = getReg(b, ins); if not value then return nil, err end
+						setValue(a, value)
+					elseif op == "GETGLOBAL" then
+						local item = constants[(e[1] or -1) + 1]
+						local value = item and globalExpr(item.value)
+						if not value then return fail(ins, "invalid GETGLOBAL constant") end
+						setGlobalValue(a, value, ins)
+					elseif op == "SETGLOBAL" then
+						local item = constants[(e[1] or -1) + 1]
+						local lhs = item and globalExpr(item.value)
+						local rhs, err = getCode(a, ins); if not rhs then return nil, err end
+						if not lhs then return fail(ins, "invalid SETGLOBAL constant") end
+						lines[#lines + 1] = lhs .. " = " .. rhs
+					elseif op == "GETIMPORT" then
+						local item = constants[(e[1] or -1) + 1]
+						local value = item and item.value
+						local validImport = validIdentifierPath(value)
+						if type(value) == "string" then
+							local servicePrefix, suffix = value:match('^(game:GetService%("[%w_]+"%))(.*)$')
+							if servicePrefix then
+								local validSuffix = true
+								while suffix ~= "" do
+									local segment, tail = suffix:match("^%.([%a_][%w_]*)(.*)$")
+									if not segment or safeKeywords[segment] then validSuffix = false; break end
+									suffix = tail
+								end
+								if validSuffix then validImport = true end
+							end
+						end
+						if not validImport then
+							return fail(ins, "GETIMPORT path is not a validated identifier path")
+						end
+						setGlobalValue(a, value, ins)
+					elseif op == "NEWTABLE" then
+						setValue(a, temp("{}", "tbl"))
+					elseif op == "GETTABLE" then
+						local object, err1 = getCode(b, ins); if not object then return nil, err1 end
+						local key, err2 = getCode(c, ins); if not key then return nil, err2 end
+						setValue(a, temp(object .. "[" .. key .. "]"))
+					elseif op == "SETTABLE" then
+						local value, err1 = getCode(a, ins); if not value then return nil, err1 end
+						local object, err2 = getCode(b, ins); if not object then return nil, err2 end
+						local key, err3 = getCode(c, ins); if not key then return nil, err3 end
+						lines[#lines + 1] = object .. "[" .. key .. "] = " .. value
+					elseif op == "GETTABLEKS" then
+						local object, err = getCode(b, ins); if not object then return nil, err end
+						local item = constants[(e[2] or -1) + 1]
+						if not item or type(item.value) ~= "string" then return fail(ins, "GETTABLEKS key constant is invalid") end
+						setValue(a, temp(object .. keyExpr(item.value)))
+					elseif op == "SETTABLEKS" then
+						local value, err1 = getCode(a, ins); if not value then return nil, err1 end
+						local object, err2 = getCode(b, ins); if not object then return nil, err2 end
+						local item = constants[(e[2] or -1) + 1]
+						if not item or type(item.value) ~= "string" then return fail(ins, "SETTABLEKS key constant is invalid") end
+						lines[#lines + 1] = object .. keyExpr(item.value) .. " = " .. value
+					elseif op == "GETTABLEN" then
+						local object, err = getCode(b, ins); if not object then return nil, err end
+						setValue(a, temp(object .. "[" .. tostring((e[1] or 0) + 1) .. "]"))
+					elseif op == "SETTABLEN" then
+						local value, err1 = getCode(a, ins); if not value then return nil, err1 end
+						local object, err2 = getCode(b, ins); if not object then return nil, err2 end
+						lines[#lines + 1] = object .. "[" .. tostring((e[1] or 0) + 1) .. "] = " .. value
+					elseif binary[op] then
+						local left, err1 = getCode(b, ins); if not left then return nil, err1 end
+						local right, err2 = getCode(c, ins); if not right then return nil, err2 end
+						setValue(a, temp("(" .. left .. " " .. binary[op] .. " " .. right .. ")"))
+					elseif binaryK[op] then
+						local left, err1 = getCode(b, ins); if not left then return nil, err1 end
+						local right, err2 = constant(e[1]); if not right then return fail(ins, err2) end
+						setValue(a, temp("(" .. left .. " " .. binaryK[op] .. " " .. right .. ")"))
+					elseif op == "SUBRK" or op == "DIVRK" then
+						local right, err1 = getCode(b, ins); if not right then return nil, err1 end
+						local left, err2 = constant(e[1]); if not left then return fail(ins, err2) end
+						setValue(a, temp("(" .. left .. (op == "SUBRK" and " - " or " / ") .. right .. ")"))
+					elseif op == "NOT" or op == "MINUS" or op == "LENGTH" then
+						local value, err = getCode(b, ins); if not value then return nil, err end
+						local expression = op == "NOT" and ("not (" .. value .. ")") or op == "MINUS" and ("- (" .. value .. ")") or ("#(" .. value .. ")")
+						setValue(a, temp(expression))
+					elseif op == "CONCAT" then
+						local parts = {}
+						for register = b, c do local value, err = getCode(register, ins); if not value then return nil, err end; parts[#parts + 1] = value end
+						setValue(a, temp("(" .. table.concat(parts, " .. ") .. ")"))
+					elseif op == "NAMECALL" then
+						local receiverValue, receiverErr = getReg(b, ins); if not receiverValue then return nil, receiverErr end
+						local receiver = receiverValue.code
+						local item = constants[(e[2] or -1) + 1]
+						if not item or type(item.value) ~= "string" then return fail(ins, "NAMECALL method constant is invalid") end
+						local matchingCall, captureReceiver = false, false
+						for look = ins.irIndex + 1, #ir.instructions do
+							local future = ir.instructions[look]
+							if future.op == "CALL" and future.registers[1] == a then matchingCall = true; break end
+							if future.op == "CALL" or future.op == "SETGLOBAL" or future.op == "SETTABLE" or future.op == "SETTABLEKS" or future.op == "SETTABLEN" then captureReceiver = true end
+						end
+						if not matchingCall then return fail(ins, "NAMECALL is not paired with a matching CALL") end
+						if receiverValue.global and captureReceiver then receiver = temp(receiver, "receiver").code end
+						setValue(a, { methodCall = true, receiver = receiver, method = item.value })
+						setValue(a + 1, { code = receiver })
+					elseif op == "CALL" then
+						local base = a
+						local argCount, resultCount = e[1], e[2]
+						if type(argCount) ~= "number" or argCount == 0 then return fail(ins, "open-argument CALL is unsupported") end
+						if type(resultCount) ~= "number" or resultCount == 0 or resultCount > 2 then return fail(ins, "open or multiple-result CALL is unsupported") end
+						local callee, err = getReg(base, ins); if not callee then return nil, err end
+						local args, firstArg = {}, base + 1
+						local methodCall = callee.methodCall == true
+						if methodCall then firstArg = base + 2 end
+						for register = firstArg, base + argCount - 1 do
+							local value, valueErr = getCode(register, ins); if not value then return nil, valueErr end
+							args[#args + 1] = value
+						end
+						local callCode
+						if methodCall then
+							local method = callee.method
+							if not method:match("^[%a_][%w_]*$") or safeKeywords[method] then
+								return fail(ins, "non-identifier NAMECALL method is unsupported in safe mode")
+							end
+							callCode = callee.receiver .. ":" .. method .. "(" .. table.concat(args, ", ") .. ")"
+						else
+							local fn, fnErr = getCode(base, ins); if not fn then return nil, fnErr end
+							callCode = fn .. "(" .. table.concat(args, ", ") .. ")"
+						end
+						if resultCount == 1 then
+							lines[#lines + 1] = callCode
+							regs[base] = nil
+						else
+							-- Keep a single-result call as an expression so an adjacent
+							-- NAMECALL can become `game:GetService(...):Method(...)`.
+							local nextIns = ir.instructions[ins.irIndex + 1]
+							if nextIns and nextIns.op == "NAMECALL" and nextIns.registers[2] == base then
+								setValue(base, { code = callCode })
+							else
+								setValue(base, temp(callCode, "call"))
+							end
+						end
+					elseif op == "RETURN" then
+						local count = e[1] or 0
+						if count == 0 then return fail(ins, "open RETURN is unsupported") end
+						if count == 1 then
+							lines[#lines + 1] = "return"
+						else
+							local values = {}
+							for register = a, a + count - 2 do local value, err = getCode(register, ins); if not value then return nil, err end; values[#values + 1] = value end
+							lines[#lines + 1] = "return " .. table.concat(values, ", ")
+						end
+					else
+						return fail(ins, "opcode passed validation but has no safe source lowering")
+					end
+				end
+				if #lines == 0 then return "-- Empty function body (safe subset)" end
+				return "-- Decompiled by Zuka safe subset. Requires the original Luau/Roblox runtime context.\n" .. table.concat(lines, "\n")
+			end
+
 			local function manager(proceed, issue)
 				if proceed then
+					-- Safe mode bypasses every legacy text-rewrite/declaration-recovery
+					-- pass. Its source is already generated from semantic values; running
+					-- regex rewrites afterward would reintroduce the register bugs this
+					-- mode is specifically designed to avoid.
+					if type(options) == "table" and options.mode == "safe" then
+						local ok, safeResult = pcall(function()
+							local mainProtoId, registerActions, protoTable = organize()
+							local output, safeError = decompileSafeSubset(mainProtoId, registerActions, protoTable)
+							if not output then error(safeError, 0) end
+							return output
+						end)
+						if ok then return safeResult end
+						return "-- SAFE DECOMPILATION REFUSED:\n-- " .. tostring(safeResult)
+					end
 					local startTime = os.clock()
 					local result
 					local ok, res = pcall(function()
-						return finalize(organize())
+						local mainProtoId, registerActions, protoTable = organize()
+						if type(options) == "table" and options.mode == "safe" then
+							local safeResult, safeError = decompileSafeSubset(mainProtoId, registerActions, protoTable)
+							if not safeResult then
+								error("SAFE DECOMPILATION REFUSED: " .. tostring(safeError), 0)
+							end
+							return safeResult
+						end
+						return finalize(mainProtoId, registerActions, protoTable)
 					end)
-					result = ok and res or ("-- RUNTIME ERROR:\n-- " .. tostring(res))
+					result = ok and res or ((type(options) == "table" and options.mode == "safe") and ("-- SAFE DECOMPILATION REFUSED:\n-- " .. tostring(res)) or ("-- RUNTIME ERROR:\n-- " .. tostring(res)))
 					local _svcNames = {
 						Workspace = "workspace",
 						Players = 'game:GetService("Players")',
@@ -5152,11 +5583,14 @@ local function main(...)
 	initialize()
 	local input, output
 	local audit = false
+	local safeMode = false
 	local i = 1
 	while i <= #cliArgs do
 		local value = cliArgs[i]
 		if value == "--audit" then
 			audit = true
+		elseif value == "--safe" then
+			safeMode = true
 		elseif value == "-o" or value == "--output" then
 			i = i + 1
 			output = cliArgs[i]
@@ -5164,7 +5598,7 @@ local function main(...)
 				error("Missing filename after -o", 0)
 			end
 		elseif value == "-h" or value == "--help" then
-			print("Usage: luau bytecode_source_cli.lua input.luauc [-o output.lua] [--audit]")
+			print("Usage: luau bytecode_source_cli.lua input.luauc [-o output.lua] [--audit] [--safe]")
 			return
 		elseif not input and type(value) == "string" and value:sub(1, 1) ~= "-" then
 			input = value
@@ -5174,7 +5608,7 @@ local function main(...)
 		i = i + 1
 	end
 	if not input then
-		error("Usage: luau bytecode_source_cli.lua input.luauc [-o output.lua] [--audit]", 0)
+		error("Usage: luau bytecode_source_cli.lua input.luauc [-o output.lua] [--audit] [--safe]", 0)
 	end
 	if output == input then
 		error("Output must differ from input", 0)
@@ -5188,7 +5622,7 @@ local function main(...)
 	end
 	local bytecode = file:read("*a")
 	file:close()
-	local result = ZukDecompile(bytecode)
+	local result = ZukDecompile(bytecode, safeMode and { mode = "safe" } or nil)
 	if audit and type(result) == "string" then
 		local findings = 0
 		local function report(lineNumber, label, code)
