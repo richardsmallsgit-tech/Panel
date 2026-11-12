@@ -51845,8 +51845,6 @@ addcmd("instancebypass", { "fucking hate this game" }, function(args, speaker)
 		)
 	end
 end)
--- ── Imported: esp2  [raw → addcmd] ──────────────────────
-
 addcmd("esp2", {}, function(args, speaker)
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
@@ -51882,9 +51880,6 @@ addcmd("esp2", {}, function(args, speaker)
     Players.PlayerAdded:Connect(locateHelper)
 end)
 addcmd("fuckoff", {}, function(args, speaker)
-    game:GetService("GuiService"):SetGameplayPausedNotificationEnabled:Destroy()
-end)
-addcmd("nogamegui", {}, function(args, speaker)
     task.spawn(function()
         game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
     end)
@@ -54851,4 +54846,3 @@ return {
 	setconstant = setconstant,
 	getprotos = getprotos,
 }
-
