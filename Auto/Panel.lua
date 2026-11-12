@@ -1,3 +1,23 @@
+--[[
+
+
+
+ ________           __                         
+/\_____  \         /\ \                        
+\/____//'/'  __  __\ \ \/'\      __      ____  
+     //'/'  /\ \/\ \\ \ , <    /'__`\   /',__\ 
+    //'/'___\ \ \_\ \\ \ \\`\ /\ \L\.\_/\__, `\
+    /\_______\ \____/ \ \_\ \_\ \__/.\_\/\____/
+    \/_______/\/___/   \/_/\/_/\/__/\/_/\/___/ 
+                                               
+                                               
+
+
+
+
+]]
+
+
 local genv = getgenv()
 local SPOOF_NAME, SPOOF_VER = "Solara", "Solara v9.01"
 genv.identifyexecutor = function()
@@ -51825,6 +51845,50 @@ addcmd("instancebypass", { "fucking hate this game" }, function(args, speaker)
 		)
 	end
 end)
+-- ── Imported: esp2  [raw → addcmd] ──────────────────────
+
+addcmd("esp2", {}, function(args, speaker)
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local function locateHelper(player)
+    	if player == LocalPlayer then
+    		return
+    	end
+    	local function apply(character)
+    		if not character then
+    			return
+    		end
+    		if character:FindFirstChild("PlayerOutline_") then
+    			character.PlayerOutline_:Destroy()
+    		end
+    		local highlight = Instance.new("Highlight")
+    		highlight.Name = "PlayerOutline_"
+    		highlight.Adornee = character
+    		highlight.FillColor = Color3.fromRGB(255, 255, 255)
+    		highlight.OutlineColor = Color3.fromRGB(180, 220, 255)
+    		highlight.FillTransparency = 0.88
+    		highlight.OutlineTransparency = 0.35
+    		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    		highlight.Parent = character
+    	end
+    	if player.Character then
+    		apply(player.Character)
+    	end
+    	player.CharacterAdded:Connect(apply)
+    end
+    for _, player in ipairs(Players:GetPlayers()) do
+    	locateHelper(player)
+    end
+    Players.PlayerAdded:Connect(locateHelper)
+end)
+addcmd("fuckoff", {}, function(args, speaker)
+    game:GetService("GuiService"):SetGameplayPausedNotificationEnabled:Destroy()
+end)
+addcmd("nogamegui", {}, function(args, speaker)
+    task.spawn(function()
+        game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
+    end)
+end)
 addcmd("altcam", {}, function(args, speaker)
 	local Players = game:GetService("Players")
 	local RunService = game:GetService("RunService")
@@ -51845,7 +51909,7 @@ addcmd("altcam", {}, function(args, speaker)
 		},
 		Config = {
 			ToggleKey = Enum.KeyCode.B,
-			Distance = 15,
+			Distance = 20,
 			MinDistance = 2,
 			MaxDistance = 30,
 			ZoomSensitivity = 2,
@@ -51857,7 +51921,7 @@ addcmd("altcam", {}, function(args, speaker)
 			MaxPitch = math.rad(65),
 			LockPitch = false,
 			RotateCharacter = true,
-			CameraCollision = true,
+			CameraCollision = false,
 		},
 	}
 	function ForceCamera:_Disconnect()
@@ -52813,7 +52877,7 @@ local function loadAimbotGUI(args)
 		statusLabel.TextColor3 = P.GREEN
 		statusLabel.Font = Enum.Font.Code
 		statusLabel.TextSize = 10
-		statusLabel.Text = "ready — hold toggle key to aim"
+		statusLabel.Text = "we lit"
 		statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 		local selectLabel = Instance.new("TextLabel", statusBar)
 		selectLabel.Size = UDim2.new(1, 0, 0, 12)
@@ -52886,7 +52950,7 @@ local function loadAimbotGUI(args)
 		sectionDiv(scroll, "MODIFIERS", 60)
 		local ignoreTeamToggle = makeToggle(scroll, "Ignore Team", false, 61)
 		ignoreTeamToggle.Row.LayoutOrder = 61
-		local wallCheckToggle = makeToggle(scroll, "Wall Check", true, 62)
+		local wallCheckToggle = makeToggle(scroll, "Wall Check", false, 62)
 		wallCheckToggle.Row.LayoutOrder = 62
 		sectionDiv(scroll, "ANTI-VIEWER", 70)
 		local avToggle = makeToggle(scroll, "Anti-Viewer", false, 71)
@@ -53747,7 +53811,7 @@ addcmd("fakechar", { "fc" }, function(args, speaker)
 end)
 zukacmd({
 	Name = "aimbot",
-	Aliases = {},
+	Aliases = {"a"},
 	Description = "Loads the aimbot GUI. Optional: [player name] to lock target.",
 }, function(args)
 	if not game:GetService("CoreGui"):FindFirstChild("aim_addon") then
