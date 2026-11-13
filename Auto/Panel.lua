@@ -48057,6 +48057,7 @@ addcmd("fuckyou", {}, function(args, speaker)
     task.spawn(function()
         game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
     end)
+end)
 addcmd("ztycoon", {"ztyc"}, function(args, speaker)
     local Players = game:GetService("Players")
     local GunSettings = game:GetService("ReplicatedStorage").GunSettings
