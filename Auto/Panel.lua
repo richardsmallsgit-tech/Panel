@@ -40336,7 +40336,7 @@ addcmd("audit", {}, function(args, speaker)
 		end
 	end)
 end)
-addcmd("mov", { "ztyc" }, function(args, speaker)
+addcmd("mov", {}, function(args, speaker)
 	do
 		local prev = _G._BetterMovement
 		if prev then
