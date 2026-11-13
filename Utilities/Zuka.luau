@@ -2440,24 +2440,47 @@ local function main(...)
 								end
 							end
 						end
-						-- Global environment values are not local identifiers. Multiple
-						-- GETGLOBAL/GETIMPORT instructions may legitimately resolve to the
-						-- same global (especially `game`); never discard later occurrences
-						-- during name deconfliction or they regress to synthetic vN locals.
+						-- Deconflict inferred locals only when their register generations
+						-- have overlapping live intervals. A global "seen name" set is
+						-- incorrect: unrelated locals lose useful names, and pairs() makes
+						-- the winner nondeterministic across runs.
 						do
-							local seenNames = {}
+							local candidates = {}
 							for r, tl in pairs(regGenTimeline) do
 								for _, entry in ipairs(tl) do
 									local key = r .. ":" .. entry.gen
 									local nm = regInferredName[key]
 									if nm and not regInferredGlobal[key] then
-										if seenNames[nm] then
-											regInferredName[key] = nil
-										else
-											seenNames[nm] = true
-										end
+										candidates[#candidates + 1] = {
+											key = key,
+											name = nm,
+											startIdx = entry.startIdx or 1,
+											endIdx = entry.endIdx or entry.startIdx or 1,
+											register = r,
+											generation = entry.gen,
+										}
 									end
 								end
+							end
+							table.sort(candidates, function(a, b)
+								if a.startIdx ~= b.startIdx then return a.startIdx < b.startIdx end
+								if a.register ~= b.register then return a.register < b.register end
+								return a.generation < b.generation
+							end)
+							local acceptedByName = {}
+							for _, candidate in ipairs(candidates) do
+								local accepted = acceptedByName[candidate.name] or {}
+								local suffix = 1
+								for _, prior in ipairs(accepted) do
+									local overlaps = candidate.startIdx <= prior.endIdx
+										and prior.startIdx <= candidate.endIdx
+									if overlaps then suffix += 1 end
+								end
+								if suffix > 1 then
+									regInferredName[candidate.key] = candidate.name .. "_" .. suffix
+								end
+								accepted[#accepted + 1] = candidate
+								acceptedByName[candidate.name] = accepted
 							end
 						end
 						local regNameCache = {}
