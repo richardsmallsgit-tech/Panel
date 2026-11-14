@@ -134,7 +134,7 @@ local function main(...)
 			TIMEOUT = "-- DECOMPILER TIMEOUT",
 			COMPILATION_FAILURE = "-- SCRIPT FAILED TO COMPILE, ERROR:\n%s",
 			UNSUPPORTED_LBC_VERSION = "-- BYTECODE VERSION %d IS NOT SUPPORTED (EXPECTED %d-%d)",
-			USED_GLOBALS = "-- USED GLOBALS: %s.\n",
+			USED_GLOBALS = "-- gloabls: %s.\n",
 			DECOMPILER_REMARK = "-- DECOMPILER REMARK: %s\n",
 		}
 		local CASE_MULTIPLIER = 227
@@ -1086,11 +1086,6 @@ local function main(...)
 			end
 			local function organize()
 				local mainProtoId, protoTable = disassemble()
-
-				-- Luau bytecode can contain either the normal opcode IDs or this
-				-- decompiler's multiplier-encoded IDs. Score both interpretations
-				-- across every prototype, accounting for AUX words, then use the
-				-- interpretation that produces the most coherent instruction stream.
 				local function scoreOpcodeEncoding(opcodeMap)
 					local score = 0
 					for _, proto in protoTable do
@@ -1113,13 +1108,9 @@ local function main(...)
 					end
 					return score
 				end
-
 				local rawOpcodeScore = scoreOpcodeEncoding(LuauRawOpcodeMap)
 				local encodedOpcodeScore = scoreOpcodeEncoding(LuauEncodedOpCode)
-				local opcodeMap = rawOpcodeScore > encodedOpcodeScore
-					and LuauRawOpcodeMap
-					or LuauEncodedOpCode
-
+				local opcodeMap = rawOpcodeScore > encodedOpcodeScore and LuauRawOpcodeMap or LuauEncodedOpCode
 				local mainProto = protoTable[mainProtoId]
 				mainProto.main = true
 				local registerActions = {}
@@ -1168,7 +1159,13 @@ local function main(...)
 						local function reg(act, regs, extra, hide)
 							table.insert(
 								protoRegisterActions,
-								{ usedRegisters = regs or {}, extraData = extra, opCode = act, hide = hide, bytecodePC = currentInstructionPC }
+								{
+									usedRegisters = regs or {},
+									extraData = extra,
+									opCode = act,
+									hide = hide,
+									bytecodePC = currentInstructionPC,
+								}
 							)
 						end
 						for idx, instruction in ipairs(instructions) do
@@ -1319,8 +1316,6 @@ local function main(...)
 								reg(oci, { A }, { D })
 							elseif opn == "SETLIST" then
 								if C ~= 0 then
-									-- Luau's fixed SETLIST count uses count+1 encoding; zero
-									-- denotes the open/top-of-stack form.
 									local regs = { A, B }
 									for k = 1, math.max(0, C - 2) do
 										table.insert(regs, B + k)
@@ -1439,7 +1434,7 @@ local function main(...)
 					end
 					local function writeActions(protoActions)
 						local openCallTail = nil
-	local iteratorCalls = {}
+						local iteratorCalls = {}
 						local actions = protoActions.actions
 						local proto = protoActions.proto
 						local lineInfo = proto.instructionLineInfo
@@ -1449,16 +1444,14 @@ local function main(...)
 						local pflags = proto.flags
 						local numParams = proto.numParams
 						local flow = { numeric = {}, generic = {}, backedges = {}, targets = {} }
-						-- Source-emission indices are not bytecode PCs: AUX-bearing
-						-- instructions create hidden marker actions, and those markers share
-						-- the bytecode PC with the visible semantic action. Prefer the
-						-- visible action when translating a bytecode jump destination.
 						local actionAtBytecodePC = {}
 						local maxBytecodePC = -1
 						for actionIndex, action in ipairs(actions) do
 							local bytecodePC = action.bytecodePC
 							if type(bytecodePC) == "number" then
-								if bytecodePC > maxBytecodePC then maxBytecodePC = bytecodePC end
+								if bytecodePC > maxBytecodePC then
+									maxBytecodePC = bytecodePC
+								end
 								local prior = actionAtBytecodePC[bytecodePC]
 								if prior == nil or (actions[prior] and actions[prior].hide and not action.hide) then
 									actionAtBytecodePC[bytecodePC] = actionIndex
@@ -1466,33 +1459,46 @@ local function main(...)
 							end
 						end
 						local function jumpTarget(pc, delta)
-							-- Luau jump offsets are relative to the bytecode instruction
-							-- after the jump, not to the filtered action-array index.
 							local action = actions[pc]
 							local bytecodePC = action and action.bytecodePC
 							if type(bytecodePC) == "number" and type(delta) == "number" then
 								local target = actionAtBytecodePC[bytecodePC + delta + 1]
-								if target then return target end
-								if bytecodePC + delta + 1 > maxBytecodePC then return #actions + 1 end
+								if target then
+									return target
+								end
+								if bytecodePC + delta + 1 > maxBytecodePC then
+									return #actions + 1
+								end
 							end
-							-- Conservative compatibility fallback for malformed or unmapped
-							-- targets; valid decoded targets take the bytecode-PC path above.
 							return pc + (delta or 0) + 1
 						end
 						local CONDITIONAL_JUMPS = {
-							JUMPIF = true, JUMPIFNOT = true, JUMPIFEQ = true, JUMPIFLE = true,
-							JUMPIFLT = true, JUMPIFNOTEQ = true, JUMPIFNOTLE = true, JUMPIFNOTLT = true,
-							JUMPXEQKNIL = true, JUMPXEQKB = true, JUMPXEQKN = true, JUMPXEQKS = true,
+							JUMPIF = true,
+							JUMPIFNOT = true,
+							JUMPIFEQ = true,
+							JUMPIFLE = true,
+							JUMPIFLT = true,
+							JUMPIFNOTEQ = true,
+							JUMPIFNOTLE = true,
+							JUMPIFNOTLT = true,
+							JUMPXEQKNIL = true,
+							JUMPXEQKB = true,
+							JUMPXEQKN = true,
+							JUMPXEQKS = true,
 						}
-						-- Build an instruction-level CFG before attempting source structuring.
-						-- Action indices are used here to stay compatible with the current
-						-- action stream; AUX words have already been consumed by organize().
 						local function buildControlFlowGraph()
 							local count = #actions
 							local cfg = {
-								blocks = {}, blockAt = {}, edges = {}, predecessors = {},
-								successors = {}, dominators = {}, postDominators = {},
-								naturalLoops = {}, naturalBackedges = {}, leaders = {},
+								blocks = {},
+								blockAt = {},
+								edges = {},
+								predecessors = {},
+								successors = {},
+								dominators = {},
+								postDominators = {},
+								naturalLoops = {},
+								naturalBackedges = {},
+								leaders = {},
 							}
 							local leaders = { [1] = true }
 							local targetAt = {}
@@ -1509,10 +1515,13 @@ local function main(...)
 							local terminal = { RETURN = true, RETURN0 = true, RETURN1 = true }
 							local function isConditional(op)
 								return CONDITIONAL_JUMPS[op] == true
-									or op == "FORNPREP" or op == "FORNLOOP"
-									 or op == "FORGPREP" or op == "FORGPREP_INEXT"
-									 or op == "FORGPREP_NEXT" or op == "FORGLOOP"
-								end
+									or op == "FORNPREP"
+									or op == "FORNLOOP"
+									or op == "FORGPREP"
+									or op == "FORGPREP_INEXT"
+									or op == "FORGPREP_NEXT"
+									or op == "FORGLOOP"
+							end
 							for pc, act in ipairs(actions) do
 								local op = act.opCode and act.opCode.name
 								local delta = act.extraData and act.extraData[1]
@@ -1527,24 +1536,35 @@ local function main(...)
 									end
 								end
 								if unconditional[op] or isConditional(op) or terminal[op] then
-									if pc < count then leaders[pc + 1] = true end
+									if pc < count then
+										leaders[pc + 1] = true
+									end
 								end
 							end
 							local leaderList = {}
-							for pc in pairs(leaders) do leaderList[#leaderList + 1] = pc end
+							for pc in pairs(leaders) do
+								leaderList[#leaderList + 1] = pc
+							end
 							table.sort(leaderList)
 							cfg.leaders = leaderList
 							for i, startPC in ipairs(leaderList) do
-								local block = { id = i, start = startPC, finish = (leaderList[i + 1] or (count + 1)) - 1 }
+								local block =
+									{ id = i, start = startPC, finish = (leaderList[i + 1] or (count + 1)) - 1 }
 								cfg.blocks[i] = block
-								for pc = block.start, block.finish do cfg.blockAt[pc] = i end
+								for pc = block.start, block.finish do
+									cfg.blockAt[pc] = i
+								end
 								cfg.successors[i], cfg.predecessors[i] = {}, {}
 							end
 							local function addEdge(fromId, toId, kind)
-								if not fromId or not toId then return end
+								if not fromId or not toId then
+									return
+								end
 								local list = cfg.successors[fromId]
 								for _, edge in ipairs(list) do
-									if edge.to == toId then return end
+									if edge.to == toId then
+										return
+									end
 								end
 								local edge = { from = fromId, to = toId, kind = kind }
 								list[#list + 1] = edge
@@ -1557,19 +1577,28 @@ local function main(...)
 								local target = targetAt[block.finish]
 								local nextBlock = blockId < #cfg.blocks and (blockId + 1) or nil
 								if unconditional[op] then
-									if target then addEdge(blockId, cfg.blockAt[target], "jump") end
+									if target then
+										addEdge(blockId, cfg.blockAt[target], "jump")
+									end
 								elseif terminal[op] then
-									-- No successor: return terminates this path.
 								elseif isConditional(op) then
-									if target then addEdge(blockId, cfg.blockAt[target], "taken") end
-									if nextBlock then addEdge(blockId, nextBlock, "fallthrough") end
+									if target then
+										addEdge(blockId, cfg.blockAt[target], "taken")
+									end
+									if nextBlock then
+										addEdge(blockId, nextBlock, "fallthrough")
+									end
 								else
-									if nextBlock then addEdge(blockId, nextBlock, "fallthrough") end
+									if nextBlock then
+										addEdge(blockId, nextBlock, "fallthrough")
+									end
 								end
 							end
 							local blockCount = #cfg.blocks
 							local all = {}
-							for i = 1, blockCount do all[i] = true end
+							for i = 1, blockCount do
+								all[i] = true
+							end
 							for i = 1, blockCount do
 								cfg.dominators[i] = i == 1 and { [1] = true } or table.clone(all)
 								cfg.postDominators[i] = table.clone(all)
@@ -1581,22 +1610,37 @@ local function main(...)
 									local preds = cfg.predecessors[i]
 									local nextSet = {}
 									if #preds > 0 then
-										for k in pairs(cfg.dominators[preds[1]]) do nextSet[k] = true end
+										for k in pairs(cfg.dominators[preds[1]]) do
+											nextSet[k] = true
+										end
 										for pi = 2, #preds do
-											for k in pairs(nextSet) do if not cfg.dominators[preds[pi]][k] then nextSet[k] = nil end end
+											for k in pairs(nextSet) do
+												if not cfg.dominators[preds[pi]][k] then
+													nextSet[k] = nil
+												end
+											end
 										end
 									end
-									 nextSet[i] = true
+									nextSet[i] = true
 									local old = cfg.dominators[i]
-									for k in pairs(old) do if not nextSet[k] then changed = true end end
-									for k in pairs(nextSet) do if not old[k] then changed = true end end
+									for k in pairs(old) do
+										if not nextSet[k] then
+											changed = true
+										end
+									end
+									for k in pairs(nextSet) do
+										if not old[k] then
+											changed = true
+										end
+									end
 									cfg.dominators[i] = nextSet
 								end
 							end
-							-- Add a virtual exit node for post-dominator analysis.
 							local exitId = blockCount + 1
 							local postAll = {}
-							for i = 1, exitId do postAll[i] = true end
+							for i = 1, exitId do
+								postAll[i] = true
+							end
 							cfg.postDominators[exitId] = { [exitId] = true }
 							local postChanged = true
 							while postChanged do
@@ -1605,29 +1649,54 @@ local function main(...)
 									local succs = cfg.successors[i]
 									local nextSet = {}
 									if #succs == 0 then
-										for k in pairs(cfg.postDominators[exitId]) do nextSet[k] = true end
+										for k in pairs(cfg.postDominators[exitId]) do
+											nextSet[k] = true
+										end
 									else
-										for k in pairs(cfg.postDominators[succs[1].to]) do nextSet[k] = true end
+										for k in pairs(cfg.postDominators[succs[1].to]) do
+											nextSet[k] = true
+										end
 										for si = 2, #succs do
-											for k in pairs(nextSet) do if not cfg.postDominators[succs[si].to][k] then nextSet[k] = nil end end
+											for k in pairs(nextSet) do
+												if not cfg.postDominators[succs[si].to][k] then
+													nextSet[k] = nil
+												end
+											end
 										end
 									end
-									 nextSet[i] = true
+									nextSet[i] = true
 									local old = cfg.postDominators[i]
-									for k in pairs(old) do if not nextSet[k] then postChanged = true end end
-									for k in pairs(nextSet) do if not old[k] then postChanged = true end end
-									if postChanged then cfg.postDominators[i] = nextSet end
+									for k in pairs(old) do
+										if not nextSet[k] then
+											postChanged = true
+										end
+									end
+									for k in pairs(nextSet) do
+										if not old[k] then
+											postChanged = true
+										end
+									end
+									if postChanged then
+										cfg.postDominators[i] = nextSet
+									end
 								end
 							end
 							for _, edge in ipairs(cfg.edges) do
 								if edge.to <= edge.from and cfg.dominators[edge.from][edge.to] then
-									local loop = { header = edge.to, latch = edge.from, blocks = { [edge.to] = true, [edge.from] = true } }
+									local loop = {
+										header = edge.to,
+										latch = edge.from,
+										blocks = { [edge.to] = true, [edge.from] = true },
+									}
 									local stack = { edge.from }
 									while #stack > 0 do
 										local node = table.remove(stack)
 										if node ~= edge.to then
 											for _, pred in ipairs(cfg.predecessors[node]) do
-												if not loop.blocks[pred] then loop.blocks[pred] = true; stack[#stack + 1] = pred end
+												if not loop.blocks[pred] then
+													loop.blocks[pred] = true
+													stack[#stack + 1] = pred
+												end
 											end
 										end
 									end
@@ -1673,25 +1742,25 @@ local function main(...)
 								end
 							end
 						end
-						-- Prefer dominance-validated natural backedges. Keep the raw set as a
-						-- fallback for irreducible or partially decoded control flow.
 						local rawBackedges = flow.backedges
 						if next(cfg.naturalBackedges) ~= nil then
 							flow.backedges = cfg.naturalBackedges
 						else
 							flow.backedges = rawBackedges
 						end
-						-- Recognize a common if/else shape: a conditional jump to the else
-						-- arm, with an unconditional forward JUMP immediately before it.
 						local elseBranches, elseJumpIndices = {}, {}
 						local function previousVisibleAction(index)
 							local j = index - 1
-							while j >= 1 and actions[j] and actions[j].hide do j -= 1 end
+							while j >= 1 and actions[j] and actions[j].hide do
+								j -= 1
+							end
 							return j >= 1 and j or nil
 						end
 						local function nextVisibleAction(index)
 							local j = index + 1
-							while j <= #actions and actions[j] and actions[j].hide do j += 1 end
+							while j <= #actions and actions[j] and actions[j].hide do
+								j += 1
+							end
 							return j <= #actions and j or nil
 						end
 						for pc, act in ipairs(actions) do
@@ -1706,7 +1775,9 @@ local function main(...)
 										local d = ca.extraData and ca.extraData[1]
 										if type(d) == "number" then
 											local target = jumpTarget(candidate, d)
-											if target > elseStart and target <= #actions + 1 then skipIndex, elseEnd = candidate, target end
+											if target > elseStart and target <= #actions + 1 then
+												skipIndex, elseEnd = candidate, target
+											end
 										end
 									end
 								end
@@ -1961,12 +2032,13 @@ local function main(...)
 						local function buildRegNames(instrIdx)
 							local names = {}
 							if proto.debugLocals then
-								-- Debug-local ranges are bytecode PCs (zero-based, end-exclusive),
-								-- while the emitter addresses actions (one-based, with AUX markers).
-								-- Translate through the visible action's original bytecode PC.
 								local action = actions[instrIdx]
 								local pc = action and action.bytecodePC
-								if type(pc) == "number" then pc -= 1 else pc = (instrIdx or 1) - 1 end
+								if type(pc) == "number" then
+									pc -= 1
+								else
+									pc = (instrIdx or 1) - 1
+								end
 								for _, dl in ipairs(proto.debugLocals) do
 									if pc >= dl.startPC and pc < dl.endPC then
 										names[dl.register] = dl.name
@@ -1988,98 +2060,182 @@ local function main(...)
 							end
 							return "upv_" .. tostring(r)
 						end
-						-- Opcode semantics for the register action format produced by writeInstructions().
-						-- usedRegisters contains a mixture of destination and operand registers; it is
-						-- NOT a generic read/write list. Keep these rules explicit and conservative.
 						local function getSourceRegisters(opName, ur2, ed2)
 							ur2, ed2 = ur2 or {}, ed2 or {}
 							local a, b, c = ur2[1], ur2[2], ur2[3]
 							local out = {}
 							local function add(r)
-								if type(r) == "number" then out[#out + 1] = r end
+								if type(r) == "number" then
+									out[#out + 1] = r
+								end
 							end
 							local function range(first, count)
 								if type(first) == "number" and type(count) == "number" and count > 0 then
-									for r = first, first + count - 1 do add(r) end
+									for r = first, first + count - 1 do
+										add(r)
+									end
 								end
 							end
-
-							if opName == "MOVE" then add(b)
-							elseif opName == "SETGLOBAL" or opName == "SETUPVAL" then add(a)
-							elseif opName == "GETTABLE" then add(b); add(c)
-							elseif opName == "SETTABLE" then add(a); add(b); add(c)
-							elseif opName == "GETTABLEKS" or opName == "GETTABLEN" then add(b)
-							elseif opName == "SETTABLEKS" or opName == "SETTABLEN" then add(a); add(b)
-							elseif opName == "NAMECALL" or opName == "NAMECALLUDATA" then add(b)
+							if opName == "MOVE" then
+								add(b)
+							elseif opName == "SETGLOBAL" or opName == "SETUPVAL" then
+								add(a)
+							elseif opName == "GETTABLE" then
+								add(b)
+								add(c)
+							elseif opName == "SETTABLE" then
+								add(a)
+								add(b)
+								add(c)
+							elseif opName == "GETTABLEKS" or opName == "GETTABLEN" then
+								add(b)
+							elseif opName == "SETTABLEKS" or opName == "SETTABLEN" then
+								add(a)
+								add(b)
+							elseif opName == "NAMECALL" or opName == "NAMECALLUDATA" then
+								add(b)
 							elseif opName == "CALL" then
-								-- B is the number of call-frame registers, including the callee.
 								range(a, ed2[1] and math.max(1, ed2[1]) or 1)
 							elseif opName == "CALLFB" then
-								-- CALLFB shares CALL's frame layout; B counts frame registers.
 								range(a, ed2[1] and math.max(1, ed2[1]) or 1)
 							elseif opName == "RETURN" then
 								local count = ed2[1] or 1
-								if count == 0 then add(a) else range(a, math.max(0, count - 1)) end
-							elseif opName == "JUMPIF" or opName == "JUMPIFNOT"
-								or opName == "JUMPXEQKNIL" or opName == "JUMPXEQKB"
-								or opName == "JUMPXEQKN" or opName == "JUMPXEQKS" then
+								if count == 0 then
+									add(a)
+								else
+									range(a, math.max(0, count - 1))
+								end
+							elseif
+								opName == "JUMPIF"
+								or opName == "JUMPIFNOT"
+								or opName == "JUMPXEQKNIL"
+								or opName == "JUMPXEQKB"
+								or opName == "JUMPXEQKN"
+								or opName == "JUMPXEQKS"
+							then
 								add(a)
-							elseif opName == "JUMPIFEQ" or opName == "JUMPIFLE" or opName == "JUMPIFLT"
-								or opName == "JUMPIFNOTEQ" or opName == "JUMPIFNOTLE" or opName == "JUMPIFNOTLT" then
-								-- AUX is an encoded operand, not a register number.
+							elseif
+								opName == "JUMPIFEQ"
+								or opName == "JUMPIFLE"
+								or opName == "JUMPIFLT"
+								or opName == "JUMPIFNOTEQ"
+								or opName == "JUMPIFNOTLE"
+								or opName == "JUMPIFNOTLT"
+							then
 								add(a)
-							elseif opName == "ADD" or opName == "SUB" or opName == "MUL"
-								or opName == "DIV" or opName == "MOD" or opName == "POW"
-								or opName == "IDIV" or opName == "AND" or opName == "OR" then
-								add(b); add(c)
-							elseif opName == "ADDK" or opName == "SUBK" or opName == "MULK"
-								or opName == "DIVK" or opName == "MODK" or opName == "POWK"
-								or opName == "IDIVK" or opName == "ANDK" or opName == "ORK" then
+							elseif
+								opName == "ADD"
+								or opName == "SUB"
+								or opName == "MUL"
+								or opName == "DIV"
+								or opName == "MOD"
+								or opName == "POW"
+								or opName == "IDIV"
+								or opName == "AND"
+								or opName == "OR"
+							then
 								add(b)
-							elseif opName == "SUBRK" or opName == "DIVRK" then add(c)
+								add(c)
+							elseif
+								opName == "ADDK"
+								or opName == "SUBK"
+								or opName == "MULK"
+								or opName == "DIVK"
+								or opName == "MODK"
+								or opName == "POWK"
+								or opName == "IDIVK"
+								or opName == "ANDK"
+								or opName == "ORK"
+							then
+								add(b)
+							elseif opName == "SUBRK" or opName == "DIVRK" then
+								add(c)
 							elseif opName == "CONCAT" then
 								if type(b) == "number" and type(c) == "number" then
-									for r = b, c do add(r) end
+									for r = b, c do
+										add(r)
+									end
 								end
-							elseif opName == "NOT" or opName == "MINUS" or opName == "LENGTH" then add(b)
+							elseif opName == "NOT" or opName == "MINUS" or opName == "LENGTH" then
+								add(b)
 							elseif opName == "SETLIST" then
 								add(a)
 								local encodedCount = ed2[2] or 0
-								if encodedCount == 0 then add(b) else range(b, math.max(0, encodedCount - 1)) end
+								if encodedCount == 0 then
+									add(b)
+								else
+									range(b, math.max(0, encodedCount - 1))
+								end
 							elseif opName == "FORNPREP" then
 								range(a, 3)
 							elseif opName == "FORNLOOP" then
 								range(a, 3)
 							elseif opName == "FORGLOOP" then
-								-- The loop base is carried in extraData[3]; usedRegisters are outputs.
 								range(ed2[3], 3)
 							elseif opName == "FORGPREP" or opName == "FORGPREP_INEXT" or opName == "FORGPREP_NEXT" then
 								range(a, 3)
-							elseif opName == "GETUDATAKS" then add(b)
-							elseif opName == "SETUDATAKS" then add(a); add(b)
-							elseif opName == "NEWCLASSMEMBER" then add(a); add(c)
-							elseif opName == "FASTCALL1" or opName == "FASTCALL2K" then add(a)
+							elseif opName == "GETUDATAKS" then
+								add(b)
+							elseif opName == "SETUDATAKS" then
+								add(a)
+								add(b)
+							elseif opName == "NEWCLASSMEMBER" then
+								add(a)
+								add(c)
+							elseif opName == "FASTCALL1" or opName == "FASTCALL2K" then
+								add(a)
 							elseif opName == "FASTCALL2" or opName == "FASTCALL3" then
-								add(a); add(b)
-								if opName == "FASTCALL3" then add(c) end
+								add(a)
+								add(b)
+								if opName == "FASTCALL3" then
+									add(c)
+								end
 							end
 							return out
 						end
-
 						local NO_DEF_OPS = {
-							SETTABLE = true, SETTABLEKS = true, SETTABLEN = true,
-							SETGLOBAL = true, SETUPVAL = true, SETUDATAKS = true,
-							RETURN = true, RETURN0 = true, RETURN1 = true,
-							JUMP = true, JUMPBACK = true, JUMPIF = true, JUMPIFNOT = true,
-							JUMPIFEQ = true, JUMPIFLE = true, JUMPIFLT = true,
-							JUMPIFNOTEQ = true, JUMPIFNOTLE = true, JUMPIFNOTLT = true,
-							JUMPXEQKNIL = true, JUMPXEQKB = true, JUMPXEQKN = true, JUMPXEQKS = true,
-							CLOSEUPVALS = true, SETLIST = true,
-							FORGPREP = true, FORGPREP_INEXT = true, FORGPREP_NEXT = true,
-							COVERAGE = true, CAPTURE = true, NOP = true, BREAK = true,
-							PREPVARARGS = true, CMPPROTO = true, FASTCALL = true,
-							FASTCALL1 = true, FASTCALL2 = true, FASTCALL2K = true, FASTCALL3 = true,
-							JUMPX = true, NEWCLASSMEMBER = true, NATIVECALL = true,
+							SETTABLE = true,
+							SETTABLEKS = true,
+							SETTABLEN = true,
+							SETGLOBAL = true,
+							SETUPVAL = true,
+							SETUDATAKS = true,
+							RETURN = true,
+							RETURN0 = true,
+							RETURN1 = true,
+							JUMP = true,
+							JUMPBACK = true,
+							JUMPIF = true,
+							JUMPIFNOT = true,
+							JUMPIFEQ = true,
+							JUMPIFLE = true,
+							JUMPIFLT = true,
+							JUMPIFNOTEQ = true,
+							JUMPIFNOTLE = true,
+							JUMPIFNOTLT = true,
+							JUMPXEQKNIL = true,
+							JUMPXEQKB = true,
+							JUMPXEQKN = true,
+							JUMPXEQKS = true,
+							CLOSEUPVALS = true,
+							SETLIST = true,
+							FORGPREP = true,
+							FORGPREP_INEXT = true,
+							FORGPREP_NEXT = true,
+							COVERAGE = true,
+							CAPTURE = true,
+							NOP = true,
+							BREAK = true,
+							PREPVARARGS = true,
+							CMPPROTO = true,
+							FASTCALL = true,
+							FASTCALL1 = true,
+							FASTCALL2 = true,
+							FASTCALL2K = true,
+							FASTCALL3 = true,
+							JUMPX = true,
+							NEWCLASSMEMBER = true,
+							NATIVECALL = true,
 						}
 						local function getDefinedRegisters(opName, ur2, ed2)
 							ur2, ed2 = ur2 or {}, ed2 or {}
@@ -2087,47 +2243,73 @@ local function main(...)
 							local defs = {}
 							local function range(first, count)
 								if type(first) == "number" and type(count) == "number" and count > 0 then
-									for r = first, first + count - 1 do defs[#defs + 1] = r end
+									for r = first, first + count - 1 do
+										defs[#defs + 1] = r
+									end
 								end
 							end
-							if NO_DEF_OPS[opName] then return defs end
+							if NO_DEF_OPS[opName] then
+								return defs
+							end
 							if opName == "CALL" or opName == "CALLFB" then
-								local count = ed2[2] or 1 -- C: result count plus one; zero means open results.
-								if count == 0 then return { a } end
+								local count = ed2[2] or 1
+								if count == 0 then
+									return { a }
+								end
 								range(a, math.max(0, count - 1))
 								return defs
 							elseif opName == "GETVARARGS" then
 								local count = ed2[1] or 1
-								if count == 0 then return { a } end
+								if count == 0 then
+									return { a }
+								end
 								range(a, math.max(0, count - 1))
 								return defs
 							elseif opName == "NAMECALL" or opName == "NAMECALLUDATA" then
-								-- NAMECALL prepares the callable and implicit self in A and A+1.
 								range(a, 2)
 								return defs
 							elseif opName == "FORGLOOP" then
-								-- writeInstructions stores the actual output registers in usedRegisters.
 								for _, r in ipairs(ur2) do
-									if type(r) == "number" then defs[#defs + 1] = r end
+									if type(r) == "number" then
+										defs[#defs + 1] = r
+									end
 								end
 								return defs
 							elseif opName == "FORNLOOP" then
-								-- The loop instruction updates the internal index and visible loop variable.
 								range(a, 1)
 								range(a and (a + 3), 1)
 								return defs
 							end
-							if type(a) == "number" then defs[1] = a end
+							if type(a) == "number" then
+								defs[1] = a
+							end
 							return defs
 						end
-						-- Register data-flow is computed over the CFG rather than assuming that
-						-- the previous textual assignment is always the reaching value.
 						local function buildRegisterDataFlow()
-							local rf = { instructions = {}, blocks = {}, definitions = {}, definitionInfo = {}, usesByDefinition = {}, uninitializedUses = {}, phiCandidates = {} }
+							local rf = {
+								instructions = {},
+								blocks = {},
+								definitions = {},
+								definitionInfo = {},
+								usesByDefinition = {},
+								uninitializedUses = {},
+								phiCandidates = {},
+							}
 							local definitionsByRegister = {}
-							local function addSet(set, value) set[value] = true end
+							local function addSet(set, value)
+								set[value] = true
+							end
 							for blockId, block in ipairs(cfg.blocks) do
-								rf.blocks[blockId] = { use = {}, def = {}, liveIn = {}, liveOut = {}, inDefs = {}, outDefs = {}, gen = {}, kill = {} }
+								rf.blocks[blockId] = {
+									use = {},
+									def = {},
+									liveIn = {},
+									liveOut = {},
+									inDefs = {},
+									outDefs = {},
+									gen = {},
+									kill = {},
+								}
 								local state = rf.blocks[blockId]
 								for ai = block.start, block.finish do
 									local act = actions[ai]
@@ -2135,9 +2317,11 @@ local function main(...)
 									local uses = getSourceRegisters(op, act.usedRegisters, act.extraData)
 									local defs = getDefinedRegisters(op, act.usedRegisters, act.extraData)
 									local info = { block = blockId, uses = uses, defs = defs }
-									 rf.instructions[ai] = info
+									rf.instructions[ai] = info
 									for _, r in ipairs(uses) do
-										if not state.def[r] then addSet(state.use, r) end
+										if not state.def[r] then
+											addSet(state.use, r)
+										end
 									end
 									for _, r in ipairs(defs) do
 										state.def[r] = true
@@ -2156,7 +2340,9 @@ local function main(...)
 								for r in pairs(state.def) do
 									local allDefs = definitionsByRegister[r] or {}
 									for _, defKey in ipairs(allDefs) do
-										if defKey ~= state.gen[r] then state.kill[defKey] = true end
+										if defKey ~= state.gen[r] then
+											state.kill[defKey] = true
+										end
 									end
 								end
 							end
@@ -2167,19 +2353,45 @@ local function main(...)
 									local state = rf.blocks[blockId]
 									local outSet, inSet = {}, {}
 									for _, edge in ipairs(cfg.successors[blockId]) do
-										for r in pairs(rf.blocks[edge.to].liveIn) do outSet[r] = true end
+										for r in pairs(rf.blocks[edge.to].liveIn) do
+											outSet[r] = true
+										end
 									end
-									for r in pairs(state.use) do inSet[r] = true end
-									for r in pairs(outSet) do if not state.def[r] then inSet[r] = true end end
+									for r in pairs(state.use) do
+										inSet[r] = true
+									end
+									for r in pairs(outSet) do
+										if not state.def[r] then
+											inSet[r] = true
+										end
+									end
 									local changed = false
-									for r in pairs(state.liveOut) do if not outSet[r] then changed = true end end
-									for r in pairs(outSet) do if not state.liveOut[r] then changed = true end end
-									for r in pairs(state.liveIn) do if not inSet[r] then changed = true end end
-									for r in pairs(inSet) do if not state.liveIn[r] then changed = true end end
-									if changed then state.liveIn, state.liveOut = inSet, outSet; liveChanged = true end
+									for r in pairs(state.liveOut) do
+										if not outSet[r] then
+											changed = true
+										end
+									end
+									for r in pairs(outSet) do
+										if not state.liveOut[r] then
+											changed = true
+										end
+									end
+									for r in pairs(state.liveIn) do
+										if not inSet[r] then
+											changed = true
+										end
+									end
+									for r in pairs(inSet) do
+										if not state.liveIn[r] then
+											changed = true
+										end
+									end
+									if changed then
+										state.liveIn, state.liveOut = inSet, outSet
+										liveChanged = true
+									end
 								end
 							end
-							-- Reaching definitions: union predecessor OUT sets, then apply block GEN/KILL.
 							local reachChanged = true
 							while reachChanged do
 								reachChanged = false
@@ -2187,17 +2399,44 @@ local function main(...)
 									local state = rf.blocks[blockId]
 									local inSet = {}
 									for _, pred in ipairs(cfg.predecessors[blockId]) do
-										for defAi in pairs(rf.blocks[pred].outDefs) do inSet[defAi] = true end
+										for defAi in pairs(rf.blocks[pred].outDefs) do
+											inSet[defAi] = true
+										end
 									end
 									local outSet = {}
-									for defAi in pairs(inSet) do if not state.kill[defAi] then outSet[defAi] = true end end
-									for _, defKey in pairs(state.gen) do outSet[defKey] = true end
+									for defAi in pairs(inSet) do
+										if not state.kill[defAi] then
+											outSet[defAi] = true
+										end
+									end
+									for _, defKey in pairs(state.gen) do
+										outSet[defKey] = true
+									end
 									local changed = false
-									for defAi in pairs(state.inDefs) do if not inSet[defAi] then changed = true end end
-									for defAi in pairs(inSet) do if not state.inDefs[defAi] then changed = true end end
-									for defAi in pairs(state.outDefs) do if not outSet[defAi] then changed = true end end
-									for defAi in pairs(outSet) do if not state.outDefs[defAi] then changed = true end end
-									if changed then state.inDefs, state.outDefs = inSet, outSet; reachChanged = true end
+									for defAi in pairs(state.inDefs) do
+										if not inSet[defAi] then
+											changed = true
+										end
+									end
+									for defAi in pairs(inSet) do
+										if not state.inDefs[defAi] then
+											changed = true
+										end
+									end
+									for defAi in pairs(state.outDefs) do
+										if not outSet[defAi] then
+											changed = true
+										end
+									end
+									for defAi in pairs(outSet) do
+										if not state.outDefs[defAi] then
+											changed = true
+										end
+									end
+									if changed then
+										state.inDefs, state.outDefs = inSet, outSet
+										reachChanged = true
+									end
 								end
 							end
 							for blockId, block in ipairs(cfg.blocks) do
@@ -2212,13 +2451,21 @@ local function main(...)
 								end
 								for r, incoming in pairs(defsAtEntry) do
 									local count = 0
-									for _ in pairs(incoming) do count += 1 end
-									if count > 1 then rf.phiCandidates[#rf.phiCandidates + 1] = { block = blockId, register = r, incoming = incoming } end
+									for _ in pairs(incoming) do
+										count += 1
+									end
+									if count > 1 then
+										rf.phiCandidates[#rf.phiCandidates + 1] =
+											{ block = blockId, register = r, incoming = incoming }
+									end
 								end
 								local reaching = {}
 								for defKey in pairs(rf.blocks[blockId].inDefs) do
 									local defInfo = rf.definitionInfo[defKey]
-									if defInfo then reaching[defInfo.register] = reaching[defInfo.register] or {}; reaching[defInfo.register][defKey] = true end
+									if defInfo then
+										reaching[defInfo.register] = reaching[defInfo.register] or {}
+										reaching[defInfo.register][defKey] = true
+									end
 								end
 								for ai = block.start, block.finish do
 									local info = rf.instructions[ai]
@@ -2228,7 +2475,7 @@ local function main(...)
 											found = true
 											local chain = rf.usesByDefinition[defKey] or {}
 											chain[#chain + 1] = { action = ai, register = r }
-											 rf.usesByDefinition[defKey] = chain
+											rf.usesByDefinition[defKey] = chain
 										end
 										if not found then
 											rf.uninitializedUses[#rf.uninitializedUses + 1] = {
@@ -2240,9 +2487,11 @@ local function main(...)
 									end
 									for _, r in ipairs(info.defs) do
 										local byReg = reaching[r] or {}
-										for defAi in pairs(byReg) do byReg[defAi] = nil end
+										for defAi in pairs(byReg) do
+											byReg[defAi] = nil
+										end
 										byReg[tostring(ai) .. ":" .. tostring(r)] = true
-										 reaching[r] = byReg
+										reaching[r] = byReg
 									end
 								end
 							end
@@ -2418,8 +2667,6 @@ local function main(...)
 											end
 										end
 									elseif opn2 == "GETGLOBAL" then
-										-- GETGLOBAL always denotes an environment lookup, not a local.
-										-- Preserve every valid global identifier (not just Roblox roots).
 										local gname = constStr(ed2[1])
 										name = sanitizeName(gname)
 										isGlobalValue = name ~= nil
@@ -2440,10 +2687,6 @@ local function main(...)
 								end
 							end
 						end
-						-- Deconflict inferred locals only when their register generations
-						-- have overlapping live intervals. A global "seen name" set is
-						-- incorrect: unrelated locals lose useful names, and pairs() makes
-						-- the winner nondeterministic across runs.
 						do
 							local candidates = {}
 							for r, tl in pairs(regGenTimeline) do
@@ -2463,8 +2706,12 @@ local function main(...)
 								end
 							end
 							table.sort(candidates, function(a, b)
-								if a.startIdx ~= b.startIdx then return a.startIdx < b.startIdx end
-								if a.register ~= b.register then return a.register < b.register end
+								if a.startIdx ~= b.startIdx then
+									return a.startIdx < b.startIdx
+								end
+								if a.register ~= b.register then
+									return a.register < b.register
+								end
 								return a.generation < b.generation
 							end)
 							local acceptedByName = {}
@@ -2474,7 +2721,9 @@ local function main(...)
 								for _, prior in ipairs(accepted) do
 									local overlaps = candidate.startIdx <= prior.endIdx
 										and prior.startIdx <= candidate.endIdx
-									if overlaps then suffix += 1 end
+									if overlaps then
+										suffix += 1
+									end
 								end
 								if suffix > 1 then
 									regInferredName[candidate.key] = candidate.name .. "_" .. suffix
@@ -2489,14 +2738,12 @@ local function main(...)
 								return "v?"
 							end
 							local safeNumParams = numParams or 0
-							-- Named closure bindings outrank synthetic debug-local names.
 							if instrIdx then
 								local inferred = regInferredName[r .. ":" .. regGenAt(r, instrIdx)]
-								if inferred then return inferred end
+								if inferred then
+									return inferred
+								end
 							end
-							-- Prefer active debug-local names for parameters and locals alike.
-							-- The previous ordering returned synthetic pN names before consulting
-							-- debug info, and used action indexes as if they were bytecode PCs.
 							if instrIdx and proto.debugLocals then
 								local cached = regNameCache[instrIdx]
 								if not cached then
@@ -2521,11 +2768,10 @@ local function main(...)
 							local baseName = "v" .. tostring(r - safeNumParams)
 							if instrIdx and regNeedsSuffix[r] then
 								local g = regGenAt(r, instrIdx)
-								if g > 1 then baseName ..= "_" .. g end
+								if g > 1 then
+									baseName ..= "_" .. g
+								end
 							end
-							-- Never let a synthetic child-register temporary reuse the
-							-- spelling of a captured parent local: that would shadow the
-							-- upvalue and turn GETUPVAL/SETUPVAL into a self-assignment.
 							if proto._captureNames then
 								for _, capturedName in pairs(proto._captureNames) do
 									if capturedName == baseName then
@@ -2618,8 +2864,6 @@ local function main(...)
 						end
 						local function writeProto(reg, p, captureInstrIdx)
 							local emittedName = canonicalFunctionName(p.name)
-							-- Bind the closure destination before resolving captures so a
-							-- recursive function's self-upvalue resolves to its lexical name.
 							if p.name then
 								local gen = regGenAt(reg, captureInstrIdx or 1)
 								regInferredName[reg .. ":" .. gen] = emittedName
@@ -2643,9 +2887,6 @@ local function main(...)
 								body = fmtProto(p)
 							end
 							if p.name then
-								-- A named Luau closure is already represented by its lexical
-								-- local function declaration. Associate its destination register
-								-- with that name so recursive and subsequent calls use the binding.
 								emit("" .. body)
 								writeActions(registerActions[p.id])
 								emit("end")
@@ -2672,9 +2913,6 @@ local function main(...)
 							NAMECALL = true,
 						}
 						for i, action in ipairs(actions) do
-							-- A jump target can land on the hidden opcode marker of an
-							-- AUX-bearing instruction. Close/open structured branches before
-							-- suppressing that marker, otherwise an else may be emitted as end.
 							handleJumps(i)
 							if action.hide then
 								continue
@@ -2786,7 +3024,6 @@ local function main(...)
 								}
 								return R(a) .. " " .. (ops[opn] or "==") .. " " .. R(b)
 							end
-
 							if loopStarts[i] then
 								emit(ind() .. (loopStarts[i] == "repeat" and "repeat" or "while true do"))
 								indentLevel += 1
@@ -2824,9 +3061,6 @@ local function main(...)
 								local skipCount = ed[2] or 0
 								local statement = ind() .. R(ur[1]) .. " = " .. toEscapedString(toBoolean(ed[1]))
 								if skipCount ~= 0 then
-									-- Keep bytecode skip metadata as a trailing comment. Emitting it
-									-- with emitRaw() placed it after the line break, so the next
-									-- emitted token could become invalid source such as "+1end".
 									statement ..= " -- LOADB skip " .. tostring(skipCount)
 								end
 								emit(statement)
@@ -2928,18 +3162,18 @@ local function main(...)
 									end
 									callBody = rb .. " = "
 								end
-								local receiverR = baseR
-								if prev and prev.opCode and prev.opCode.name == "NAMECALL" then
+								local isNamecall = prev and prev.opCode and prev.opCode.name == "NAMECALL"
+								local calleeExpr
+								if isNamecall then
+									local receiverR = baseR
 									if prev.usedRegisters and prev.usedRegisters[2] ~= nil then
 										receiverR = prev.usedRegisters[2]
 									end
+									calleeExpr = fmtReg(receiverR, i - 2) .. nmMethod
+								else
+									calleeExpr = fmtReg(baseR, i - 1)
 								end
-								-- NAMECALL writes its callable/self pair into A/A+1.  When A aliases
-								-- the receiver register, Rpre() at the CALL site sees the
-								-- post-NAMECALL generation and invents a synthetic local.
-								-- NAMECALL has an AUX marker before it, so i-2 is pre-NAMECALL.
-								local receiverExpr = fmtReg(receiverR, i - 2)
-								callBody ..= receiverExpr .. nmMethod .. "("
+								callBody ..= calleeExpr .. "("
 								if
 									nArgs == -1
 									and openCallTail
@@ -2999,9 +3233,15 @@ local function main(...)
 								local nextIndex = nextVisibleAction(i)
 								local nextAction = nextIndex and actions[nextIndex]
 								local nextName = nextAction and nextAction.opCode and nextAction.opCode.name
-								local nextIsOpenCall = nextName == "CALL" and nextAction.extraData and nextAction.extraData[1] == 0
-								local nextIsOpenReturn = nextName == "RETURN" and nextAction.extraData and nextAction.extraData[1] == 0
-								local nextIsGenericPrep = nextName == "FORGPREP" or nextName == "FORGPREP_INEXT" or nextName == "FORGPREP_NEXT"
+								local nextIsOpenCall = nextName == "CALL"
+									and nextAction.extraData
+									and nextAction.extraData[1] == 0
+								local nextIsOpenReturn = nextName == "RETURN"
+									and nextAction.extraData
+									and nextAction.extraData[1] == 0
+								local nextIsGenericPrep = nextName == "FORGPREP"
+									or nextName == "FORGPREP_INEXT"
+									or nextName == "FORGPREP_NEXT"
 								if nRes > 0 and nextIsGenericPrep then
 									local rhs = callBody:match("=%s*(.*)$")
 									iteratorCalls[baseR] = { producer = i, base = baseR, expression = rhs or "..." }
@@ -3016,12 +3256,9 @@ local function main(...)
 								end
 							elseif opn == "RETURN" then
 								local baseR = ur[1]
-								local returnCount = ed[1] or 1 -- Luau B: count including the implicit +1
+								local returnCount = ed[1] or 1
 								local rb = ""
 								if returnCount == 0 then
-									-- Open returns forward the immediately preceding open producer.
-									-- A CALL with C=0 returns its full result tuple; GETVARARGS
-									-- with B=0 forwards the vararg tuple. Do not append a fabricated ...
 									local prevIndex = previousVisibleAction(i)
 									local prev = prevIndex and actions[prevIndex]
 									local prevName = prev and prev.opCode and prev.opCode.name
@@ -3031,7 +3268,6 @@ local function main(...)
 									elseif prevName == "GETVARARGS" and prev.extraData and prev.extraData[1] == 0 then
 										rb = " ..."
 									elseif prevName == "CALL" or prevName == "CALLFB" then
-										-- Fallback for a call whose open result was not retained.
 										local callee = prev.usedRegisters and prev.usedRegisters[1]
 										rb = " " .. (callee and R(callee) or R(baseR))
 									else
@@ -3041,7 +3277,9 @@ local function main(...)
 									rb = " "
 									for k = 0, returnCount - 2 do
 										rb ..= R(baseR + k)
-										if k ~= returnCount - 2 then rb ..= ", " end
+										if k ~= returnCount - 2 then
+											rb ..= ", "
+										end
 									end
 								end
 								emit(ind() .. "return" .. rb)
@@ -3229,15 +3467,22 @@ local function main(...)
 								if not loopAction or not loopAction.opCode or loopAction.opCode.name ~= "FORGLOOP" then
 									for j = i + 1, #actions do
 										local candidate = actions[j]
-										if candidate.opCode and candidate.opCode.name == "FORGLOOP"
-											and candidate.extraData and candidate.extraData[3] == base then
+										if
+											candidate.opCode
+											and candidate.opCode.name == "FORGLOOP"
+											and candidate.extraData
+											and candidate.extraData[3] == base
+										then
 											loopEnd = j
 											loopAction = candidate
 											break
 										end
 									end
 								end
-								local resultCount = loopAction and loopAction.extraData and bit32.band(loopAction.extraData[2] or 0, 0xFF) or 2
+								local resultCount = loopAction
+										and loopAction.extraData
+										and bit32.band(loopAction.extraData[2] or 0, 0xFF)
+									or 2
 								local debugNames = buildRegNames(i + 1)
 								local names = {}
 								for k = 1, resultCount do
@@ -3250,9 +3495,9 @@ local function main(...)
 									genericLoopVars[register] = { name = name, first = i + 1, last = loopEnd - 1 }
 									names[k] = name
 								end
-								local iterator = opn == "FORGPREP_INEXT" and "ipairs" or "pairs"
 								local pendingIterator = iteratorCalls[base]
-								local iteratorExpression = pendingIterator and pendingIterator.expression or (iterator .. "(" .. R(base + 1) .. ")")
+								local iteratorExpression = pendingIterator and pendingIterator.expression
+									or (R(base) .. ", " .. R(base + 1) .. ", " .. R(base + 2))
 								iteratorCalls[base] = nil
 								emit("for " .. table.concat(names, ", ") .. " in " .. iteratorExpression .. " do")
 							elseif opn == "FORGPREP" then
@@ -3262,17 +3507,27 @@ local function main(...)
 								if ea then
 									for k, r in ipairs(ea.usedRegisters) do
 										vb ..= fmtReg(r, i)
-										if k ~= #ea.usedRegisters then vb ..= ", " end
+										if k ~= #ea.usedRegisters then
+											vb ..= ", "
+										end
 									end
 								end
 								local base = ur[1]
 								local pendingIterator = iteratorCalls[base]
-								local iteratorExpression = pendingIterator and pendingIterator.expression or R(base)
+								local iteratorExpression = pendingIterator and pendingIterator.expression
+									or (R(base) .. ", " .. R(base + 1) .. ", " .. R(base + 2))
 								iteratorCalls[base] = nil
 								emit("for " .. vb .. " in " .. iteratorExpression .. " do")
 							elseif opn == "GETVARARGS" then
 								local nextAction = actions[i + 1]
-								if ed[1] == 0 and nextAction and nextAction.opCode and nextAction.opCode.name == "RETURN" and nextAction.extraData and nextAction.extraData[1] == 0 then
+								if
+									ed[1] == 0
+									and nextAction
+									and nextAction.opCode
+									and nextAction.opCode.name == "RETURN"
+									and nextAction.extraData
+									and nextAction.extraData[1] == 0
+								then
 									continue
 								end
 								local vc2 = ed[1] - 1
@@ -3449,11 +3704,6 @@ local function main(...)
 				end
 				return finalResult
 			end
-			-- Semantic IR + deliberately conservative source backend.  This backend is
-			-- opt-in (`Decompile(bytecode, { mode = "safe" })` / CLI `--safe`).  It
-			-- emits source only when every instruction in the selected prototype is
-			-- covered by the subset below; otherwise it returns an explicit failure
-			-- instead of guessing and silently changing program behavior.
 			local function decompileSafeSubset(mainProtoId, registerActions, protoTable)
 				local protoActions = registerActions[mainProtoId]
 				local proto = protoTable[mainProtoId]
@@ -3471,7 +3721,10 @@ local function main(...)
 					constants = constants,
 					upvalues = proto.captures,
 					children = proto.innerProtos,
-					instructions = {}, blocks = {}, blockAt = {}, edges = {},
+					instructions = {},
+					blocks = {},
+					blockAt = {},
+					edges = {},
 				}
 				local actionToIR = {}
 				local pcToIR = {}
@@ -3483,7 +3736,9 @@ local function main(...)
 							op = action.opCode.name,
 							registers = table.clone(action.usedRegisters or {}),
 							operands = table.clone(action.extraData or {}),
-							line = proto.instructionLineInfo and proto.instructionLineInfo[action.bytecodePC or actionIndex] or nil,
+							line = proto.instructionLineInfo
+									and proto.instructionLineInfo[action.bytecodePC or actionIndex]
+								or nil,
 							aux = nil,
 						}
 						if ins.op == "GETGLOBAL" or ins.op == "SETGLOBAL" then
@@ -3497,29 +3752,108 @@ local function main(...)
 						elseif ins.op == "NEWTABLE" or ins.op == "SETLIST" then
 							ins.aux = ins.operands[2] or ins.operands[1]
 						end
-						-- Explicit register effects keep semantic reads/writes separate
-						-- from the legacy mixed-purpose usedRegisters array.
 						ins.reads, ins.writes = {}, {}
 						local rr, ee = ins.registers, ins.operands
 						local ra, rb, rc = rr[1], rr[2], rr[3]
-						local function read(register) if type(register) == "number" then ins.reads[#ins.reads + 1] = register end end
-						local function write(register) if type(register) == "number" then ins.writes[#ins.writes + 1] = register end end
-						local function readRange(first, count) if type(first) == "number" and type(count) == "number" then for register = first, first + count - 1 do read(register) end end end
-						if ins.op == "MOVE" then read(rb); write(ra)
-						elseif ins.op == "SETGLOBAL" then read(ra)
-						elseif ins.op == "GETGLOBAL" or ins.op == "GETIMPORT" or ins.op == "LOADNIL" or ins.op == "LOADB" or ins.op == "LOADN" or ins.op == "LOADK" or ins.op == "NEWTABLE" then write(ra)
-						elseif ins.op == "GETTABLE" then read(rb); read(rc); write(ra)
-						elseif ins.op == "GETTABLEKS" or ins.op == "GETTABLEN" then read(rb); write(ra)
-						elseif ins.op == "SETTABLE" then read(ra); read(rb); read(rc)
-						elseif ins.op == "SETTABLEKS" or ins.op == "SETTABLEN" then read(ra); read(rb)
-						elseif ins.op == "NAMECALL" then read(rb); write(ra); if type(ra) == "number" then write(ra + 1) end
-						elseif ins.op == "CALL" or ins.op == "CALLFB" then readRange(ra, (ee[1] or 1)); if (ee[2] or 1) > 1 then for register = ra, ra + ee[2] - 2 do write(register) end end
-						elseif ins.op == "RETURN" then if (ee[1] or 0) > 1 then readRange(ra, ee[1] - 1) end
-						elseif ins.op == "ADD" or ins.op == "SUB" or ins.op == "MUL" or ins.op == "DIV" or ins.op == "MOD" or ins.op == "POW" or ins.op == "IDIV" or ins.op == "AND" or ins.op == "OR" then read(rb); read(rc); write(ra)
-						elseif ins.op == "ADDK" or ins.op == "SUBK" or ins.op == "MULK" or ins.op == "DIVK" or ins.op == "MODK" or ins.op == "POWK" or ins.op == "IDIVK" or ins.op == "ANDK" or ins.op == "ORK" then read(rb); write(ra)
-						elseif ins.op == "SUBRK" or ins.op == "DIVRK" then read(rb); write(ra)
-						elseif ins.op == "NOT" or ins.op == "MINUS" or ins.op == "LENGTH" then read(rb); write(ra)
-						elseif ins.op == "CONCAT" then readRange(rb, rc - rb + 1); write(ra)
+						local function read(register)
+							if type(register) == "number" then
+								ins.reads[#ins.reads + 1] = register
+							end
+						end
+						local function write(register)
+							if type(register) == "number" then
+								ins.writes[#ins.writes + 1] = register
+							end
+						end
+						local function readRange(first, count)
+							if type(first) == "number" and type(count) == "number" then
+								for register = first, first + count - 1 do
+									read(register)
+								end
+							end
+						end
+						if ins.op == "MOVE" then
+							read(rb)
+							write(ra)
+						elseif ins.op == "SETGLOBAL" then
+							read(ra)
+						elseif
+							ins.op == "GETGLOBAL"
+							or ins.op == "GETIMPORT"
+							or ins.op == "LOADNIL"
+							or ins.op == "LOADB"
+							or ins.op == "LOADN"
+							or ins.op == "LOADK"
+							or ins.op == "NEWTABLE"
+						then
+							write(ra)
+						elseif ins.op == "GETTABLE" then
+							read(rb)
+							read(rc)
+							write(ra)
+						elseif ins.op == "GETTABLEKS" or ins.op == "GETTABLEN" then
+							read(rb)
+							write(ra)
+						elseif ins.op == "SETTABLE" then
+							read(ra)
+							read(rb)
+							read(rc)
+						elseif ins.op == "SETTABLEKS" or ins.op == "SETTABLEN" then
+							read(ra)
+							read(rb)
+						elseif ins.op == "NAMECALL" then
+							read(rb)
+							write(ra)
+							if type(ra) == "number" then
+								write(ra + 1)
+							end
+						elseif ins.op == "CALL" or ins.op == "CALLFB" then
+							readRange(ra, (ee[1] or 1))
+							if (ee[2] or 1) > 1 then
+								for register = ra, ra + ee[2] - 2 do
+									write(register)
+								end
+							end
+						elseif ins.op == "RETURN" then
+							if (ee[1] or 0) > 1 then
+								readRange(ra, ee[1] - 1)
+							end
+						elseif
+							ins.op == "ADD"
+							or ins.op == "SUB"
+							or ins.op == "MUL"
+							or ins.op == "DIV"
+							or ins.op == "MOD"
+							or ins.op == "POW"
+							or ins.op == "IDIV"
+							or ins.op == "AND"
+							or ins.op == "OR"
+						then
+							read(rb)
+							read(rc)
+							write(ra)
+						elseif
+							ins.op == "ADDK"
+							or ins.op == "SUBK"
+							or ins.op == "MULK"
+							or ins.op == "DIVK"
+							or ins.op == "MODK"
+							or ins.op == "POWK"
+							or ins.op == "IDIVK"
+							or ins.op == "ANDK"
+							or ins.op == "ORK"
+						then
+							read(rb)
+							write(ra)
+						elseif ins.op == "SUBRK" or ins.op == "DIVRK" then
+							read(rb)
+							write(ra)
+						elseif ins.op == "NOT" or ins.op == "MINUS" or ins.op == "LENGTH" then
+							read(rb)
+							write(ra)
+						elseif ins.op == "CONCAT" then
+							readRange(rb, rc - rb + 1)
+							write(ra)
 						end
 						ins.action = action
 						local index = #ir.instructions + 1
@@ -3529,36 +3863,60 @@ local function main(...)
 						pcToIR[ins.pc] = index
 					end
 				end
-				-- Build block boundaries and edges from original bytecode PCs.  This
-				-- representation is retained even when the safe backend rejects branches.
 				local leaders = { [1] = true }
 				local branchOps = {
-					JUMP = true, JUMPBACK = true, JUMPX = true,
-					JUMPIF = true, JUMPIFNOT = true, JUMPIFEQ = true, JUMPIFLE = true,
-					JUMPIFLT = true, JUMPIFNOTEQ = true, JUMPIFNOTLE = true, JUMPIFNOTLT = true,
-					JUMPXEQKNIL = true, JUMPXEQKB = true, JUMPXEQKN = true, JUMPXEQKS = true,
-					FORNPREP = true, FORNLOOP = true, FORGLOOP = true, FORGPREP = true,
-					FORGPREP_INEXT = true, FORGPREP_NEXT = true,
+					JUMP = true,
+					JUMPBACK = true,
+					JUMPX = true,
+					JUMPIF = true,
+					JUMPIFNOT = true,
+					JUMPIFEQ = true,
+					JUMPIFLE = true,
+					JUMPIFLT = true,
+					JUMPIFNOTEQ = true,
+					JUMPIFNOTLE = true,
+					JUMPIFNOTLT = true,
+					JUMPXEQKNIL = true,
+					JUMPXEQKB = true,
+					JUMPXEQKN = true,
+					JUMPXEQKS = true,
+					FORNPREP = true,
+					FORNLOOP = true,
+					FORGLOOP = true,
+					FORGPREP = true,
+					FORGPREP_INEXT = true,
+					FORGPREP_NEXT = true,
 				}
 				for index, ins in ipairs(ir.instructions) do
 					if branchOps[ins.op] then
 						local delta = ins.operands[1]
 						if type(delta) == "number" then
 							local target = pcToIR[ins.pc + delta + 1]
-							if target then leaders[target] = true; ins.target = target end
+							if target then
+								leaders[target] = true
+								ins.target = target
+							end
 						end
-						if index < #ir.instructions then leaders[index + 1] = true end
+						if index < #ir.instructions then
+							leaders[index + 1] = true
+						end
 					elseif ins.op == "RETURN" and index < #ir.instructions then
 						leaders[index + 1] = true
 					end
 				end
 				local leaderList = {}
-				for index in pairs(leaders) do leaderList[#leaderList + 1] = index end
+				for index in pairs(leaders) do
+					leaderList[#leaderList + 1] = index
+				end
 				table.sort(leaderList)
 				for blockIndex, first in ipairs(leaderList) do
-					local block = { id = blockIndex, first = first, last = (leaderList[blockIndex + 1] or (#ir.instructions + 1)) - 1 }
+					local block = { id = blockIndex, first = first, last = (
+						leaderList[blockIndex + 1] or (#ir.instructions + 1)
+					) - 1 }
 					ir.blocks[blockIndex] = block
-					for index = block.first, block.last do ir.blockAt[index] = blockIndex end
+					for index = block.first, block.last do
+						ir.blockAt[index] = blockIndex
+					end
 				end
 				for blockIndex, block in ipairs(ir.blocks) do
 					local last = ir.instructions[block.last]
@@ -3566,23 +3924,47 @@ local function main(...)
 					if last and last.target and ir.blockAt[last.target] then
 						ir.edges[#ir.edges + 1] = { from = blockIndex, to = ir.blockAt[last.target], kind = "taken" }
 					end
-					if nextBlock and (not last or (last.op ~= "JUMP" and last.op ~= "JUMPBACK" and last.op ~= "JUMPX" and last.op ~= "RETURN")) then
+					if
+						nextBlock
+						and (
+							not last or (
+								last.op ~= "JUMP"
+								and last.op ~= "JUMPBACK"
+								and last.op ~= "JUMPX"
+								and last.op ~= "RETURN"
+							)
+						)
+					then
 						ir.edges[#ir.edges + 1] = { from = blockIndex, to = nextBlock.id, kind = "fallthrough" }
 					end
 				end
 				local function fail(ins, why)
-					return nil, string.format("%s at bytecode PC %s (prototype %s)", why, tostring(ins and ins.pc or "?"), tostring(mainProtoId))
+					return nil,
+						string.format(
+							"%s at bytecode PC %s (prototype %s)",
+							why,
+							tostring(ins and ins.pc or "?"),
+							tostring(mainProtoId)
+						)
 				end
 				local function quote(value)
 					return toEscapedString(tostring(value))
 				end
 				local function constant(index)
 					local item = constants[(tonumber(index) or -1) + 1]
-					if not item then return nil, "constant index out of range: " .. tostring(index) end
+					if not item then
+						return nil, "constant index out of range: " .. tostring(index)
+					end
 					local value = item.value
-					if value == nil then return "nil" end
-					if type(value) == "string" then return quote(value) end
-					if type(value) == "boolean" then return value and "true" or "false" end
+					if value == nil then
+						return "nil"
+					end
+					if type(value) == "string" then
+						return quote(value)
+					end
+					if type(value) == "boolean" then
+						return value and "true" or "false"
+					end
 					if type(value) == "number" then
 						if value ~= value or value == math.huge or value == -math.huge then
 							return nil, "non-finite numeric constant is unsupported"
@@ -3593,41 +3975,77 @@ local function main(...)
 				end
 				local safeKeywords = {}
 				for _, keyword in ipairs({
-					"and", "break", "do", "else", "elseif", "end", "false", "for", "function",
-					"if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while",
-				}) do safeKeywords[keyword] = true end
+					"and",
+					"break",
+					"do",
+					"else",
+					"elseif",
+					"end",
+					"false",
+					"for",
+					"function",
+					"if",
+					"in",
+					"local",
+					"nil",
+					"not",
+					"or",
+					"repeat",
+					"return",
+					"then",
+					"true",
+					"until",
+					"while",
+				}) do
+					safeKeywords[keyword] = true
+				end
 				local function validIdentifierPath(path)
-					if type(path) ~= "string" then return false end
+					if type(path) ~= "string" then
+						return false
+					end
 					local first, rest = path:match("^([%a_][%w_]*)(.*)$")
-					if not first or safeKeywords[first] then return false end
+					if not first or safeKeywords[first] then
+						return false
+					end
 					while rest ~= "" do
 						local segment, tail = rest:match("^%.([%a_][%w_]*)(.*)$")
-						if not segment or safeKeywords[segment] then return false end
+						if not segment or safeKeywords[segment] then
+							return false
+						end
 						rest = tail
 					end
 					return true
 				end
 				local function globalExpr(name)
-					if type(name) ~= "string" or name == "" then return nil end
-					if name:match("^[%a_][%w_]*$") and not safeKeywords[name] then return name end
+					if type(name) ~= "string" or name == "" then
+						return nil
+					end
+					if name:match("^[%a_][%w_]*$") and not safeKeywords[name] then
+						return name
+					end
 					return "_G[" .. quote(name) .. "]"
 				end
 				local regs, lines = {}, {}
 				local tempId = 0
 				local function temp(code, hint)
 					tempId += 1
-					local name = "__zuka_" .. (hint or "v") .. tostring(tempId)
+					local name = "v" .. tostring(tempId)
 					lines[#lines + 1] = "local " .. name .. " = " .. code
 					return { code = name, materialized = true }
 				end
 				local function getReg(register, ins)
 					local value = regs[register]
-					if not value then return nil, "read of uninitialized register R" .. tostring(register) .. " at PC " .. tostring(ins.pc) end
+					if not value then
+						return nil,
+							"read of uninitialized register R" .. tostring(register) .. " at PC " .. tostring(ins.pc)
+					end
 					return value
 				end
 				local function getCode(register, ins)
 					local value, err = getReg(register, ins)
-					if not value then return nil, err end
+					if not value then
+						return nil, err
+					end
 					return value.code
 				end
 				local function setValue(register, value)
@@ -3635,12 +4053,11 @@ local function main(...)
 				end
 				local function materialize(register, hint)
 					local value = regs[register]
-					if value and not value.materialized then regs[register] = temp(value.code, hint) end
+					if value and not value.materialized then
+						regs[register] = temp(value.code, hint)
+					end
 				end
 				local function setGlobalValue(register, code, ins)
-					-- Keep the common GETGLOBAL -> NAMECALL receiver path symbolic so
-					-- `game:GetService(...)` stays a global expression, not a synthetic
-					-- local. Other global reads are captured at their bytecode point.
 					local nextIns = ir.instructions[ins.irIndex + 1]
 					if nextIns and nextIns.op == "NAMECALL" and nextIns.registers[2] == register then
 						setValue(register, { code = code, global = true })
@@ -3649,70 +4066,158 @@ local function main(...)
 					end
 				end
 				local function keyExpr(key)
-					if type(key) == "string" and key:match("^[%a_][%w_]*$") and not safeKeywords[key] then return "." .. key end
+					if type(key) == "string" and key:match("^[%a_][%w_]*$") and not safeKeywords[key] then
+						return "." .. key
+					end
 					return "[" .. quote(key) .. "]"
 				end
 				local supported = {
-					NOP = true, BREAK = true, COVERAGE = true, NATIVECALL = true,
-					LOADNIL = true, LOADB = true, LOADN = true, LOADK = true, MOVE = true,
-					GETGLOBAL = true, SETGLOBAL = true, GETIMPORT = true,
-					GETTABLE = true, SETTABLE = true, GETTABLEKS = true, SETTABLEKS = true,
-					GETTABLEN = true, SETTABLEN = true, NEWTABLE = true,
-					NAMECALL = true, CALL = true, RETURN = true,
-					ADD = true, SUB = true, MUL = true, DIV = true, MOD = true, POW = true,
-					ADDK = true, SUBK = true, MULK = true, DIVK = true, MODK = true, POWK = true,
-					AND = true, OR = true, ANDK = true, ORK = true, CONCAT = true,
-					NOT = true, MINUS = true, LENGTH = true, IDIV = true, IDIVK = true,
-					SUBRK = true, DIVRK = true,
-					FASTCALL = true, FASTCALL1 = true, FASTCALL2 = true, FASTCALL2K = true, FASTCALL3 = true,
+					NOP = true,
+					BREAK = true,
+					COVERAGE = true,
+					NATIVECALL = true,
+					LOADNIL = true,
+					LOADB = true,
+					LOADN = true,
+					LOADK = true,
+					MOVE = true,
+					GETGLOBAL = true,
+					SETGLOBAL = true,
+					GETIMPORT = true,
+					GETTABLE = true,
+					SETTABLE = true,
+					GETTABLEKS = true,
+					SETTABLEKS = true,
+					GETTABLEN = true,
+					SETTABLEN = true,
+					NEWTABLE = true,
+					NAMECALL = true,
+					CALL = true,
+					RETURN = true,
+					ADD = true,
+					SUB = true,
+					MUL = true,
+					DIV = true,
+					MOD = true,
+					POW = true,
+					ADDK = true,
+					SUBK = true,
+					MULK = true,
+					DIVK = true,
+					MODK = true,
+					POWK = true,
+					AND = true,
+					OR = true,
+					ANDK = true,
+					ORK = true,
+					CONCAT = true,
+					NOT = true,
+					MINUS = true,
+					LENGTH = true,
+					IDIV = true,
+					IDIVK = true,
+					SUBRK = true,
+					DIVRK = true,
+					FASTCALL = true,
+					FASTCALL1 = true,
+					FASTCALL2 = true,
+					FASTCALL2K = true,
+					FASTCALL3 = true,
 					PREPVARARGS = true,
 				}
 				for _, ins in ipairs(ir.instructions) do
-					if not supported[ins.op] then return fail(ins, "unsupported construct " .. tostring(ins.op)) end
-					if branchOps[ins.op] then return fail(ins, "control-flow construct requires structuring and is not in the safe linear subset") end
+					if not supported[ins.op] then
+						return fail(ins, "unsupported construct " .. tostring(ins.op))
+					end
+					if branchOps[ins.op] then
+						return fail(
+							ins,
+							"control-flow construct requires structuring and is not in the safe linear subset"
+						)
+					end
 				end
 				if proto.isVarArg then
-					return nil, "vararg prototype is not in the safe linear subset (prototype " .. tostring(mainProtoId) .. ")"
+					return nil,
+						"vararg prototype is not in the safe linear subset (prototype " .. tostring(mainProtoId) .. ")"
 				end
 				if (proto.numUpvalues or 0) > 0 then
-					return nil, "prototype captures upvalues; closure semantics are not in the safe linear subset (prototype " .. tostring(mainProtoId) .. ")"
+					return nil,
+						"prototype captures upvalues; closure semantics are not in the safe linear subset (prototype "
+							.. tostring(mainProtoId)
+							.. ")"
 				end
 				local binary = {
-					ADD = "+", SUB = "-", MUL = "*", DIV = "/", MOD = "%", POW = "^",
-					IDIV = "//", AND = "and", OR = "or",
+					ADD = "+",
+					SUB = "-",
+					MUL = "*",
+					DIV = "/",
+					MOD = "%",
+					POW = "^",
+					IDIV = "//",
+					AND = "and",
+					OR = "or",
 				}
 				local binaryK = {
-					ADDK = "+", SUBK = "-", MULK = "*", DIVK = "/", MODK = "%", POWK = "^",
-					IDIVK = "//", ANDK = "and", ORK = "or",
+					ADDK = "+",
+					SUBK = "-",
+					MULK = "*",
+					DIVK = "/",
+					MODK = "%",
+					POWK = "^",
+					IDIVK = "//",
+					ANDK = "and",
+					ORK = "or",
 				}
 				for _, ins in ipairs(ir.instructions) do
 					local op, r, e = ins.op, ins.registers, ins.operands
 					local a, b, c = r[1], r[2], r[3]
-					if op == "NOP" or op == "BREAK" or op == "COVERAGE" or op == "NATIVECALL" or op:match("^FASTCALL") or op == "PREPVARARGS" then
+					if
+						op == "NOP"
+						or op == "BREAK"
+						or op == "COVERAGE"
+						or op == "NATIVECALL"
+						or op:match("^FASTCALL")
+						or op == "PREPVARARGS"
+					then
 						continue
 					elseif op == "LOADNIL" then
 						setValue(a, { code = "nil" })
 					elseif op == "LOADB" then
-						if (e[2] or 0) ~= 0 then return fail(ins, "LOADB skip-count control flow is unsupported") end
+						if (e[2] or 0) ~= 0 then
+							return fail(ins, "LOADB skip-count control flow is unsupported")
+						end
 						setValue(a, { code = ((e[1] or 0) ~= 0) and "true" or "false" })
 					elseif op == "LOADN" then
 						setValue(a, { code = tostring(e[1] or 0) })
 					elseif op == "LOADK" then
-						local value, err = constant(e[1]); if not value then return fail(ins, err) end
+						local value, err = constant(e[1])
+						if not value then
+							return fail(ins, err)
+						end
 						setValue(a, { code = value })
 					elseif op == "MOVE" then
-						local value, err = getReg(b, ins); if not value then return nil, err end
+						local value, err = getReg(b, ins)
+						if not value then
+							return nil, err
+						end
 						setValue(a, value)
 					elseif op == "GETGLOBAL" then
 						local item = constants[(e[1] or -1) + 1]
 						local value = item and globalExpr(item.value)
-						if not value then return fail(ins, "invalid GETGLOBAL constant") end
+						if not value then
+							return fail(ins, "invalid GETGLOBAL constant")
+						end
 						setGlobalValue(a, value, ins)
 					elseif op == "SETGLOBAL" then
 						local item = constants[(e[1] or -1) + 1]
 						local lhs = item and globalExpr(item.value)
-						local rhs, err = getCode(a, ins); if not rhs then return nil, err end
-						if not lhs then return fail(ins, "invalid SETGLOBAL constant") end
+						local rhs, err = getCode(a, ins)
+						if not rhs then
+							return nil, err
+						end
+						if not lhs then
+							return fail(ins, "invalid SETGLOBAL constant")
+						end
 						lines[#lines + 1] = lhs .. " = " .. rhs
 					elseif op == "GETIMPORT" then
 						local item = constants[(e[1] or -1) + 1]
@@ -3724,10 +4229,15 @@ local function main(...)
 								local validSuffix = true
 								while suffix ~= "" do
 									local segment, tail = suffix:match("^%.([%a_][%w_]*)(.*)$")
-									if not segment or safeKeywords[segment] then validSuffix = false; break end
+									if not segment or safeKeywords[segment] then
+										validSuffix = false
+										break
+									end
 									suffix = tail
 								end
-								if validSuffix then validImport = true end
+								if validSuffix then
+									validImport = true
+								end
 							end
 						end
 						if not validImport then
@@ -3737,78 +4247,176 @@ local function main(...)
 					elseif op == "NEWTABLE" then
 						setValue(a, temp("{}", "tbl"))
 					elseif op == "GETTABLE" then
-						local object, err1 = getCode(b, ins); if not object then return nil, err1 end
-						local key, err2 = getCode(c, ins); if not key then return nil, err2 end
+						local object, err1 = getCode(b, ins)
+						if not object then
+							return nil, err1
+						end
+						local key, err2 = getCode(c, ins)
+						if not key then
+							return nil, err2
+						end
 						setValue(a, temp(object .. "[" .. key .. "]"))
 					elseif op == "SETTABLE" then
-						local value, err1 = getCode(a, ins); if not value then return nil, err1 end
-						local object, err2 = getCode(b, ins); if not object then return nil, err2 end
-						local key, err3 = getCode(c, ins); if not key then return nil, err3 end
+						local value, err1 = getCode(a, ins)
+						if not value then
+							return nil, err1
+						end
+						local object, err2 = getCode(b, ins)
+						if not object then
+							return nil, err2
+						end
+						local key, err3 = getCode(c, ins)
+						if not key then
+							return nil, err3
+						end
 						lines[#lines + 1] = object .. "[" .. key .. "] = " .. value
 					elseif op == "GETTABLEKS" then
-						local object, err = getCode(b, ins); if not object then return nil, err end
+						local object, err = getCode(b, ins)
+						if not object then
+							return nil, err
+						end
 						local item = constants[(e[2] or -1) + 1]
-						if not item or type(item.value) ~= "string" then return fail(ins, "GETTABLEKS key constant is invalid") end
+						if not item or type(item.value) ~= "string" then
+							return fail(ins, "GETTABLEKS key constant is invalid")
+						end
 						setValue(a, temp(object .. keyExpr(item.value)))
 					elseif op == "SETTABLEKS" then
-						local value, err1 = getCode(a, ins); if not value then return nil, err1 end
-						local object, err2 = getCode(b, ins); if not object then return nil, err2 end
+						local value, err1 = getCode(a, ins)
+						if not value then
+							return nil, err1
+						end
+						local object, err2 = getCode(b, ins)
+						if not object then
+							return nil, err2
+						end
 						local item = constants[(e[2] or -1) + 1]
-						if not item or type(item.value) ~= "string" then return fail(ins, "SETTABLEKS key constant is invalid") end
+						if not item or type(item.value) ~= "string" then
+							return fail(ins, "SETTABLEKS key constant is invalid")
+						end
 						lines[#lines + 1] = object .. keyExpr(item.value) .. " = " .. value
 					elseif op == "GETTABLEN" then
-						local object, err = getCode(b, ins); if not object then return nil, err end
+						local object, err = getCode(b, ins)
+						if not object then
+							return nil, err
+						end
 						setValue(a, temp(object .. "[" .. tostring((e[1] or 0) + 1) .. "]"))
 					elseif op == "SETTABLEN" then
-						local value, err1 = getCode(a, ins); if not value then return nil, err1 end
-						local object, err2 = getCode(b, ins); if not object then return nil, err2 end
+						local value, err1 = getCode(a, ins)
+						if not value then
+							return nil, err1
+						end
+						local object, err2 = getCode(b, ins)
+						if not object then
+							return nil, err2
+						end
 						lines[#lines + 1] = object .. "[" .. tostring((e[1] or 0) + 1) .. "] = " .. value
 					elseif binary[op] then
-						local left, err1 = getCode(b, ins); if not left then return nil, err1 end
-						local right, err2 = getCode(c, ins); if not right then return nil, err2 end
+						local left, err1 = getCode(b, ins)
+						if not left then
+							return nil, err1
+						end
+						local right, err2 = getCode(c, ins)
+						if not right then
+							return nil, err2
+						end
 						setValue(a, temp("(" .. left .. " " .. binary[op] .. " " .. right .. ")"))
 					elseif binaryK[op] then
-						local left, err1 = getCode(b, ins); if not left then return nil, err1 end
-						local right, err2 = constant(e[1]); if not right then return fail(ins, err2) end
+						local left, err1 = getCode(b, ins)
+						if not left then
+							return nil, err1
+						end
+						local right, err2 = constant(e[1])
+						if not right then
+							return fail(ins, err2)
+						end
 						setValue(a, temp("(" .. left .. " " .. binaryK[op] .. " " .. right .. ")"))
 					elseif op == "SUBRK" or op == "DIVRK" then
-						local right, err1 = getCode(b, ins); if not right then return nil, err1 end
-						local left, err2 = constant(e[1]); if not left then return fail(ins, err2) end
+						local right, err1 = getCode(b, ins)
+						if not right then
+							return nil, err1
+						end
+						local left, err2 = constant(e[1])
+						if not left then
+							return fail(ins, err2)
+						end
 						setValue(a, temp("(" .. left .. (op == "SUBRK" and " - " or " / ") .. right .. ")"))
 					elseif op == "NOT" or op == "MINUS" or op == "LENGTH" then
-						local value, err = getCode(b, ins); if not value then return nil, err end
-						local expression = op == "NOT" and ("not (" .. value .. ")") or op == "MINUS" and ("- (" .. value .. ")") or ("#(" .. value .. ")")
+						local value, err = getCode(b, ins)
+						if not value then
+							return nil, err
+						end
+						local expression = op == "NOT" and ("not (" .. value .. ")")
+							or op == "MINUS" and ("- (" .. value .. ")")
+							or ("#(" .. value .. ")")
 						setValue(a, temp(expression))
 					elseif op == "CONCAT" then
 						local parts = {}
-						for register = b, c do local value, err = getCode(register, ins); if not value then return nil, err end; parts[#parts + 1] = value end
+						for register = b, c do
+							local value, err = getCode(register, ins)
+							if not value then
+								return nil, err
+							end
+							parts[#parts + 1] = value
+						end
 						setValue(a, temp("(" .. table.concat(parts, " .. ") .. ")"))
 					elseif op == "NAMECALL" then
-						local receiverValue, receiverErr = getReg(b, ins); if not receiverValue then return nil, receiverErr end
+						local receiverValue, receiverErr = getReg(b, ins)
+						if not receiverValue then
+							return nil, receiverErr
+						end
 						local receiver = receiverValue.code
 						local item = constants[(e[2] or -1) + 1]
-						if not item or type(item.value) ~= "string" then return fail(ins, "NAMECALL method constant is invalid") end
+						if not item or type(item.value) ~= "string" then
+							return fail(ins, "NAMECALL method constant is invalid")
+						end
 						local matchingCall, captureReceiver = false, false
 						for look = ins.irIndex + 1, #ir.instructions do
 							local future = ir.instructions[look]
-							if future.op == "CALL" and future.registers[1] == a then matchingCall = true; break end
-							if future.op == "CALL" or future.op == "SETGLOBAL" or future.op == "SETTABLE" or future.op == "SETTABLEKS" or future.op == "SETTABLEN" then captureReceiver = true end
+							if future.op == "CALL" and future.registers[1] == a then
+								matchingCall = true
+								break
+							end
+							if
+								future.op == "CALL"
+								or future.op == "SETGLOBAL"
+								or future.op == "SETTABLE"
+								or future.op == "SETTABLEKS"
+								or future.op == "SETTABLEN"
+							then
+								captureReceiver = true
+							end
 						end
-						if not matchingCall then return fail(ins, "NAMECALL is not paired with a matching CALL") end
-						if receiverValue.global and captureReceiver then receiver = temp(receiver, "receiver").code end
+						if not matchingCall then
+							return fail(ins, "NAMECALL is not paired with a matching CALL")
+						end
+						if receiverValue.global and captureReceiver then
+							receiver = temp(receiver, "receiver").code
+						end
 						setValue(a, { methodCall = true, receiver = receiver, method = item.value })
 						setValue(a + 1, { code = receiver })
 					elseif op == "CALL" then
 						local base = a
 						local argCount, resultCount = e[1], e[2]
-						if type(argCount) ~= "number" or argCount == 0 then return fail(ins, "open-argument CALL is unsupported") end
-						if type(resultCount) ~= "number" or resultCount == 0 or resultCount > 2 then return fail(ins, "open or multiple-result CALL is unsupported") end
-						local callee, err = getReg(base, ins); if not callee then return nil, err end
+						if type(argCount) ~= "number" or argCount == 0 then
+							return fail(ins, "open-argument CALL is unsupported")
+						end
+						if type(resultCount) ~= "number" or resultCount == 0 or resultCount > 2 then
+							return fail(ins, "open or multiple-result CALL is unsupported")
+						end
+						local callee, err = getReg(base, ins)
+						if not callee then
+							return nil, err
+						end
 						local args, firstArg = {}, base + 1
 						local methodCall = callee.methodCall == true
-						if methodCall then firstArg = base + 2 end
+						if methodCall then
+							firstArg = base + 2
+						end
 						for register = firstArg, base + argCount - 1 do
-							local value, valueErr = getCode(register, ins); if not value then return nil, valueErr end
+							local value, valueErr = getCode(register, ins)
+							if not value then
+								return nil, valueErr
+							end
 							args[#args + 1] = value
 						end
 						local callCode
@@ -3819,15 +4427,16 @@ local function main(...)
 							end
 							callCode = callee.receiver .. ":" .. method .. "(" .. table.concat(args, ", ") .. ")"
 						else
-							local fn, fnErr = getCode(base, ins); if not fn then return nil, fnErr end
+							local fn, fnErr = getCode(base, ins)
+							if not fn then
+								return nil, fnErr
+							end
 							callCode = fn .. "(" .. table.concat(args, ", ") .. ")"
 						end
 						if resultCount == 1 then
 							lines[#lines + 1] = callCode
 							regs[base] = nil
 						else
-							-- Keep a single-result call as an expression so an adjacent
-							-- NAMECALL can become `game:GetService(...):Method(...)`.
 							local nextIns = ir.instructions[ins.irIndex + 1]
 							if nextIns and nextIns.op == "NAMECALL" and nextIns.registers[2] == base then
 								setValue(base, { code = callCode })
@@ -3837,36 +4446,80 @@ local function main(...)
 						end
 					elseif op == "RETURN" then
 						local count = e[1] or 0
-						if count == 0 then return fail(ins, "open RETURN is unsupported") end
+						if count == 0 then
+							return fail(ins, "open RETURN is unsupported")
+						end
 						if count == 1 then
 							lines[#lines + 1] = "return"
 						else
 							local values = {}
-							for register = a, a + count - 2 do local value, err = getCode(register, ins); if not value then return nil, err end; values[#values + 1] = value end
+							for register = a, a + count - 2 do
+								local value, err = getCode(register, ins)
+								if not value then
+									return nil, err
+								end
+								values[#values + 1] = value
+							end
 							lines[#lines + 1] = "return " .. table.concat(values, ", ")
 						end
 					else
 						return fail(ins, "opcode passed validation but has no safe source lowering")
 					end
 				end
-				if #lines == 0 then return "-- Empty function body (safe subset)" end
-				return "-- Decompiled by Zuka safe subset. Requires the original Luau/Roblox runtime context.\n" .. table.concat(lines, "\n")
+				local changed = true
+				while changed do
+					changed = false
+					local rebuilt = {}
+					for lineIndex, line in ipairs(lines) do
+						local indent, name, expression = line:match("^(%s*)local%s+(v%d+)%s*=%s*(.*)$")
+						if name then
+							local uses = 0
+							for _, otherLine in ipairs(lines) do
+								for token in otherLine:gmatch("[%a_][%w_]*") do
+									if token == name then
+										uses += 1
+									end
+								end
+							end
+							uses -= 1
+							if uses == 0 then
+								changed = true
+								local trimmed = expression:match("^%s*(.-)%s*$")
+								local isCall = trimmed:match("^[%a_][%w_%.:]*%s*%b()$")
+									or trimmed:match("^%b()%s*%b()$")
+									or (trimmed:find("(", 1, true) and trimmed:sub(-1) == ")")
+								if isCall then
+									rebuilt[#rebuilt + 1] = indent .. trimmed
+								end
+							else
+								rebuilt[#rebuilt + 1] = line
+							end
+						else
+							rebuilt[#rebuilt + 1] = line
+						end
+					end
+					lines = rebuilt
+				end
+				if #lines == 0 then
+					return "-- Empty function body (safe subset)"
+				end
+				return "-- Decompiled by Zuka safe subset. Requires the original Luau/Roblox runtime context.\n"
+					.. table.concat(lines, "\n")
 			end
-
 			local function manager(proceed, issue)
 				if proceed then
-					-- Safe mode bypasses every legacy text-rewrite/declaration-recovery
-					-- pass. Its source is already generated from semantic values; running
-					-- regex rewrites afterward would reintroduce the register bugs this
-					-- mode is specifically designed to avoid.
 					if type(options) == "table" and options.mode == "safe" then
 						local ok, safeResult = pcall(function()
 							local mainProtoId, registerActions, protoTable = organize()
 							local output, safeError = decompileSafeSubset(mainProtoId, registerActions, protoTable)
-							if not output then error(safeError, 0) end
+							if not output then
+								error(safeError, 0)
+							end
 							return output
 						end)
-						if ok then return safeResult end
+						if ok then
+							return safeResult
+						end
 						return "-- SAFE DECOMPILATION REFUSED:\n-- " .. tostring(safeResult)
 					end
 					local startTime = os.clock()
@@ -3882,7 +4535,12 @@ local function main(...)
 						end
 						return finalize(mainProtoId, registerActions, protoTable)
 					end)
-					result = ok and res or ((type(options) == "table" and options.mode == "safe") and ("-- SAFE DECOMPILATION REFUSED:\n-- " .. tostring(res)) or ("-- RUNTIME ERROR:\n-- " .. tostring(res)))
+					result = ok and res
+						or (
+							(type(options) == "table" and options.mode == "safe")
+								and ("-- SAFE DECOMPILATION REFUSED:\n-- " .. tostring(res))
+							or ("-- RUNTIME ERROR:\n-- " .. tostring(res))
+						)
 					local _svcNames = {
 						Workspace = "workspace",
 						Players = 'game:GetService("Players")',
@@ -4806,10 +5464,95 @@ local function main(...)
 							end
 						end
 					end
-					-- Register temporaries belong to a prototype/function scope, not to
-					-- whichever nested branch happens to assign them first. Hoist their
-					-- declarations to the owning function body so values written in an
-					-- if/else branch remain visible after the branch.
+					local function registerAssignment(line)
+						local indent, localKw, lhs, rhs = line:match("^(%s*)(local%s+)?([^=]+)%s*=%s*(.-)%s*$")
+						if not lhs or not rhs then
+							return nil
+						end
+						local names = {}
+						for piece in (lhs .. ","):gmatch("(.-),") do
+							local name = piece:match("^%s*(v%d+_?%d*)%s*$")
+							if not name then
+								return nil
+							end
+							names[#names + 1] = name
+						end
+						return { indent = indent, names = names, rhs = rhs }
+					end
+					local function isStandaloneCall(expression)
+						local value = expression:match("^%s*(.-)%s*$") or ""
+						if not value:match("^[%a_][%w_%.:]*%s*%(") or not value:match("%)%s*$") then
+							return false
+						end
+						local depth, quote, escaped = 0, nil, false
+						for index = 1, #value do
+							local char = value:sub(index, index)
+							if quote then
+								if escaped then
+									escaped = false
+								elseif char == "\\" then
+									escaped = true
+								elseif char == quote then
+									quote = nil
+								end
+							elseif char == '"' or char == "'" then
+								quote = char
+							elseif char == "(" then
+								depth += 1
+							elseif char == ")" then
+								depth -= 1
+								if depth < 0 then
+									return false
+								end
+							elseif
+								depth == 0
+								and (
+									char == "+"
+									or char == "-"
+									or char == "*"
+									or char == "/"
+									or char == "%"
+									or char == "^"
+									or char == "="
+								)
+							then
+								return false
+							end
+						end
+						return depth == 0 and quote == nil
+					end
+					local registerUses = {}
+					for _, line in ipairs(pass3b) do
+						if line then
+							local assignment = registerAssignment(line)
+							local searchable = assignment and assignment.rhs or line
+							searchable = searchable:match("^(.-)%s*%-%-") or searchable
+							for name in searchable:gmatch("%f[%w_](v%d+_?%d*)%f[^%w_]") do
+								registerUses[name] = (registerUses[name] or 0) + 1
+							end
+						end
+					end
+					for index, line in ipairs(pass3b) do
+						if line then
+							local assignment = registerAssignment(line)
+							if assignment then
+								local allUnused = true
+								for _, name in ipairs(assignment.names) do
+									if (registerUses[name] or 0) > 0 then
+										allUnused = false
+										break
+									end
+								end
+								if allUnused and not assignment.rhs:match("^function%f[%W]") then
+									if isStandaloneCall(assignment.rhs) then
+										pass3b[index] = assignment.indent .. assignment.rhs
+									else
+										pass3b[index] = assignment.indent .. "local _ = " .. assignment.rhs
+									end
+								end
+							end
+						end
+					end
 					local pass4 = {}
 					for _, line in ipairs(pass3b) do
 						pass4[#pass4 + 1] = line
@@ -4820,6 +5563,16 @@ local function main(...)
 					local allScopes = { topScope }
 					local function currentScope()
 						return functionScopes[#functionScopes] or topScope
+					end
+					local function nestedBlockDepth()
+						local depth = 0
+						for index = #blockStack, 1, -1 do
+							if blockStack[index] == "function" then
+								break
+							end
+							depth += 1
+						end
+						return depth
 					end
 					local function isFunctionHeader(code)
 						return code:match("^local%s+function%s")
@@ -4841,8 +5594,7 @@ local function main(...)
 							end
 						end
 						local scope = currentScope()
-						local lhs = line:match("^%s*local%s+([^=]+)%s*=")
-							or line:match("^%s*([^=]+)%s*=")
+						local lhs = line:match("^%s*local%s+([^=]+)%s*=") or line:match("^%s*([^=]+)%s*=")
 						if lhs then
 							local names = {}
 							local valid = true
@@ -4855,13 +5607,28 @@ local function main(...)
 								names[#names + 1] = name
 							end
 							if valid and #names > 0 then
+								local newNames = {}
 								for _, name in ipairs(names) do
 									if not scope.seen[name] then
 										scope.seen[name] = true
-										scope.registers[#scope.registers + 1] = name
+										newNames[#newNames + 1] = name
 									end
 								end
-								pass4[lineIndex] = line:gsub("^(%s*)local%s+", "%1", 1)
+								local canDeclareHere = #newNames == #names
+									and nestedBlockDepth() == 0
+									and not code:match("=%s*function%s*%(")
+								if canDeclareHere then
+									if not line:match("^%s*local%s+") then
+										pass4[lineIndex] = line:gsub("^(%s*)", "%1local ", 1)
+									end
+								elseif #newNames > 0 then
+									for _, name in ipairs(newNames) do
+										scope.registers[#scope.registers + 1] = name
+									end
+									pass4[lineIndex] = line:gsub("^(%s*)local%s+", "%1", 1)
+								elseif line:match("^%s*local%s+") then
+									pass4[lineIndex] = line:gsub("^(%s*)local%s+", "%1", 1)
+								end
 							end
 						end
 						if isFunctionHeader(code) then
@@ -4895,8 +5662,7 @@ local function main(...)
 								for k = first, math.min(first + 49, #scope.registers) do
 									names[#names + 1] = scope.registers[k]
 								end
-								declarations[#declarations + 1] =
-									"local " .. table.concat(names, ", ")
+								declarations[#declarations + 1] = "local " .. table.concat(names, ", ")
 							end
 							insertions[#insertions + 1] = { index = insertionIndex, lines = declarations }
 						end
@@ -5472,6 +6238,128 @@ local function main(...)
 						return table.concat(lines, "\n")
 					end
 					result = recoverRegisterDeclarationsV37(result)
+					local function renameRegistersSequentially(source)
+						local names, nextId = {}, 1
+						local output = {}
+						local index, length = 1, #source
+						local quote, longBracketLevel = nil, nil
+						local function registerName(word)
+							if not (word:match("^v%d+_?%d*$") or word:match("^i%d+$")) then
+								return word
+							end
+							local mapped = names[word]
+							if not mapped then
+								mapped = "v" .. tostring(nextId)
+								nextId += 1
+								names[word] = mapped
+							end
+							return mapped
+						end
+						while index <= length do
+							local char = source:sub(index, index)
+							local nextChar = source:sub(index + 1, index + 1)
+							if quote then
+								local start = index
+								index += 1
+								local escaped = false
+								while index <= length do
+									local current = source:sub(index, index)
+									if escaped then
+										escaped = false
+									elseif current == "\\" then
+										escaped = true
+									elseif current == quote then
+										index += 1
+										break
+									end
+									index += 1
+								end
+								output[#output + 1] = source:sub(start, index - 1)
+								quote = nil
+							elseif longBracketLevel ~= nil then
+								local closeToken = "]" .. string.rep("=", longBracketLevel) .. "]"
+								local closeAt = source:find(closeToken, index, true)
+								if closeAt then
+									output[#output + 1] = source:sub(index, closeAt + #closeToken - 1)
+									index = closeAt + #closeToken
+									longBracketLevel = nil
+								else
+									output[#output + 1] = source:sub(index)
+									break
+								end
+							elseif char == "-" and nextChar == "-" then
+								local eqs = source:sub(index + 2):match("^%[(=*)%[")
+								if eqs then
+									local openToken = "[" .. eqs .. "["
+									local start = index
+									index += 2 + #openToken
+									local closeToken = "]" .. eqs .. "]"
+									local closeAt = source:find(closeToken, index, true)
+									if closeAt then
+										output[#output + 1] = source:sub(start, closeAt + #closeToken - 1)
+										index = closeAt + #closeToken
+									else
+										output[#output + 1] = source:sub(start)
+										break
+									end
+								else
+									local endAt = source:find("\n", index, true) or (length + 1)
+									output[#output + 1] = source:sub(index, endAt - 1)
+									index = endAt
+								end
+							elseif char == '"' or char == "'" then
+								quote = char
+								local start = index
+								index += 1
+								local escaped = false
+								while index <= length do
+									local current = source:sub(index, index)
+									if escaped then
+										escaped = false
+									elseif current == "\\" then
+										escaped = true
+									elseif current == quote then
+										index += 1
+										break
+									end
+									index += 1
+								end
+								output[#output + 1] = source:sub(start, index - 1)
+								quote = nil
+							elseif char == "[" then
+								local eqs = source:sub(index):match("^%[(=*)%[")
+								if eqs then
+									local openToken = "[" .. eqs .. "["
+									local start = index
+									index += #openToken
+									local closeToken = "]" .. eqs .. "]"
+									local closeAt = source:find(closeToken, index, true)
+									if closeAt then
+										output[#output + 1] = source:sub(start, closeAt + #closeToken - 1)
+										index = closeAt + #closeToken
+									else
+										output[#output + 1] = source:sub(start)
+										break
+									end
+								else
+									output[#output + 1] = char
+									index += 1
+								end
+							elseif char:match("[%a_]") then
+								local finish = index + 1
+								while finish <= length and source:sub(finish, finish):match("[%w_]") do
+									finish += 1
+								end
+								output[#output + 1] = registerName(source:sub(index, finish - 1))
+								index = finish
+							else
+								output[#output + 1] = char
+								index += 1
+							end
+						end
+						return table.concat(output)
+					end
+					result = renameRegistersSequentially(result)
 					if (os.clock() - startTime) >= 10 then
 						return Strings.TIMEOUT
 					end
