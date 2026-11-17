@@ -48053,6 +48053,13 @@ if not _G._BetterMovement_PlayerModuleLoaded then
 	_PlayerModule()
 end
 end)
+addcmd("rtools", {"rtools"}, function(args, speaker)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Combat/Weapons.lua"))()
+end)
+
+addcmd("Env", {}, function(args, speaker)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Utilities/Env.lua"))()
+end)
 addcmd("fuckyou", {}, function(args, speaker)
     task.spawn(function()
         game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
@@ -48106,7 +48113,7 @@ addcmd("ztycoon", {"ztyc"}, function(args, speaker)
     	DelayBeforeFiring = 0,
     	AmmoPerMag = 999999,
     	Range = 90000,
-    	BulletsPerShot = 4,
+    	BulletsPerShot = 10,
     	TacticalReloadTime = 0,
     	SwitchTime = 0,
     	AngleXMin = 0,
@@ -48120,7 +48127,7 @@ addcmd("ztycoon", {"ztyc"}, function(args, speaker)
     			return require(GunSettings[gunName]["1"])
     		end)
     		if not ok then
-    			warn(("patched! aint that nice"):format(gunName, result))
+    			warn(("nice"):format(gunName, result))
     			continue
     		end
     		local mod = result
