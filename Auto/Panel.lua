@@ -48053,7 +48053,7 @@ if not _G._BetterMovement_PlayerModuleLoaded then
 	_PlayerModule()
 end
 end)
-addcmd("rtools", {"rtools"}, function(args, speaker)
+addcmd("rtools", {}, function(args, speaker)
 loadstring(game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Combat/Weapons.lua"))()
 end)
 
