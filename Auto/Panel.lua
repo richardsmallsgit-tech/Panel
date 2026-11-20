@@ -491,7 +491,7 @@ function DoNotif(text, duration, color)
 end
 function zukacmd(info, func)
 	if not info or not info.Name or not func then
-		warn("Command failed: something broke somewhere nigga please. ")
+		warn("shoutout to that nigga zuka fr")
 		return
 	end
 	local name = info.Name:lower()
@@ -3870,7 +3870,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then
 		return
 	end
-	if input.KeyCode == Enum.KeyCode.P then
+	if input.KeyCode == Enum.KeyCode.T then
 		Fly:Toggle()
 	elseif input.KeyCode == Enum.KeyCode.U then
 		Fly:ToggleUI()
