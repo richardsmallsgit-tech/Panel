@@ -48085,10 +48085,12 @@ if not _G._BetterMovement_PlayerModuleLoaded then
 	_PlayerModule()
 end
 end)
-addcmd("rtools", {}, function(args, speaker)
+addcmd("CustomDex", {"DexRe"}, function(args, speaker)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Auto/Dex-Remake.lua"))()
+end)
+addcmd("sharptools", {}, function(args, speaker)
 loadstring(game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Combat/Weapons.lua"))()
 end)
-
 addcmd("Env", {}, function(args, speaker)
 loadstring(game:HttpGet("https://raw.githubusercontent.com/richardsmallsgit-tech/Panel/refs/heads/main/Utilities/Env.lua"))()
 end)
