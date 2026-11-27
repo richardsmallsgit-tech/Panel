@@ -52393,6 +52393,9 @@ addcmd("pflinger", { "partf", "pv4" }, function(args, speaker)
 		)
 	)()
 end)
+addcmd("lowgrav", {}, function(args, speaker)
+    workspace.Gravity = 100
+end)
 addcmd("cutgrass", { "grassgui" }, function(args, speaker)
 	loadstring(game:HttpGet((function()
 		local t = {
@@ -52622,6 +52625,21 @@ addcmd("fakechar", { "fc" }, function(args, speaker)
 		end
 		return table.concat(s)
 	end)()))()
+end)
+addcmd("noreset", {}, function(args, speaker)
+    local v1 = game:GetService("Players").LocalPlayer
+    local v2 = game:GetService("RunService").Heartbeat:Connect(function()
+    	local v3 = v1.Character and v1.Character:FindFirstChild("HumanoidRootPart")
+    	if not v3 then
+    		return
+    	end
+    	if v2 and (v3.Position - v2.Position).Magnitude > 200 then
+    		v3.CFrame = v2
+    		warn("reset blocked")
+    	else
+    		v2 = v3.CFrame
+    	end
+    end)
 end)
 zukacmd({
 	Name = "aimbot",
